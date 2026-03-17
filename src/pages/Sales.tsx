@@ -80,8 +80,10 @@ export default function Sales() {
     })
   }
 
-  const updateQuantity = (productId: string, newQuantity: number) => {
-    if (newQuantity <= 0) {
+  const updateQuantity = (productId: string, newQuantity: number, fromInput = false) => {
+    if (newQuantity < 0) return
+
+    if (newQuantity === 0 && !fromInput) {
       setCart((c) => c.filter((i) => i.product.id !== productId))
       return
     }
@@ -95,7 +97,7 @@ export default function Sales() {
         title: 'Estoque insuficiente',
         description: `O estoque atual é de ${product.stock} ${product.unit}.`,
       })
-      return
+      newQuantity = product.stock
     }
 
     setCart((prev) =>
@@ -131,6 +133,7 @@ export default function Sales() {
   }
 
   const cartTotal = cart.reduce((acc, item) => acc + item.total, 0)
+  const hasValidItems = cart.some((item) => item.quantity > 0)
 
   const discountNum = Number(discountValue) || 0
   const calculatedDiscount =
@@ -158,10 +161,21 @@ export default function Sales() {
       return
     }
 
+    const validItems = cart.filter((i) => i.quantity > 0)
+
+    if (validItems.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Carrinho vazio',
+        description: 'Adicione produtos com quantidade maior que zero.',
+      })
+      return
+    }
+
     const sale = addSale({
       customerId: selectedCustomerId !== 'none' ? selectedCustomerId : undefined,
       customer: selectedCustomer?.name || 'Consumidor Final',
-      items: cart,
+      items: validItems,
       total: finalTotal,
       discount: calculatedDiscount > 0 ? calculatedDiscount : undefined,
       cashbackUsed: appliedCashback,
@@ -272,22 +286,41 @@ export default function Sales() {
                         <div className="text-xs text-muted-foreground mt-1">
                           {formatCurrency(item.product.price)} / {item.product.unit}
                         </div>
-                        <div className="flex items-center gap-2 mt-2">
+                        <div className="flex items-center gap-1 mt-2">
                           <Button
                             variant="outline"
                             size="icon"
-                            className="h-6 w-6"
+                            className="h-8 w-8 shrink-0"
                             onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
                           >
                             <Minus className="h-3 w-3" />
                           </Button>
-                          <span className="text-sm w-6 text-center font-medium">
-                            {item.quantity}
-                          </span>
+                          <Input
+                            type="number"
+                            min="0"
+                            className="h-8 w-16 text-center px-1 text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            value={item.quantity === 0 ? '' : item.quantity}
+                            onChange={(e) => {
+                              const val = e.target.value
+                              if (val === '') {
+                                updateQuantity(item.product.id, 0, true)
+                              } else {
+                                const num = parseInt(val, 10)
+                                if (!isNaN(num)) {
+                                  updateQuantity(item.product.id, num, true)
+                                }
+                              }
+                            }}
+                            onBlur={() => {
+                              if (item.quantity === 0) {
+                                setCart((c) => c.filter((i) => i.product.id !== item.product.id))
+                              }
+                            }}
+                          />
                           <Button
                             variant="outline"
                             size="icon"
-                            className="h-6 w-6"
+                            className="h-8 w-8 shrink-0"
                             onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
                           >
                             <Plus className="h-3 w-3" />
@@ -357,7 +390,7 @@ export default function Sales() {
             </div>
             <Button
               className="w-full h-12 text-lg font-bold"
-              disabled={cart.length === 0}
+              disabled={!hasValidItems}
               onClick={() => setIsCheckoutOpen(true)}
             >
               Avançar para Pagamento
