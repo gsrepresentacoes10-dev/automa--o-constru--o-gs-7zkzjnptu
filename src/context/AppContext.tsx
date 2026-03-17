@@ -2,6 +2,13 @@ import { createContext, useContext, useState, ReactNode } from 'react'
 
 export type Role = 'Admin' | 'Vendedor' | 'Estoquista'
 
+export type PaymentMethod =
+  | 'Dinheiro'
+  | 'PIX'
+  | 'Cartão de Crédito'
+  | 'Cartão de Débito'
+  | 'Venda a Prazo'
+
 export interface Product {
   id: string
   sku: string
@@ -39,6 +46,7 @@ export interface Sale {
   status: 'Pendente' | 'Pago' | 'Cancelado'
   cashbackEarned?: number
   cashbackUsed?: number
+  paymentMethod?: PaymentMethod
 }
 
 interface AppContextType {
@@ -127,6 +135,7 @@ const initialSales: Sale[] = [
     total: 1450.5,
     status: 'Pago',
     cashbackEarned: 29.01,
+    paymentMethod: 'PIX',
   },
 ]
 
@@ -144,7 +153,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ...newSale,
       id: `V-${1000 + sales.length + 1}`,
       date: new Date().toISOString(),
-      status: 'Pago',
+      status: newSale.paymentMethod === 'Venda a Prazo' ? 'Pendente' : 'Pago',
     }
     setSales([sale, ...sales])
 

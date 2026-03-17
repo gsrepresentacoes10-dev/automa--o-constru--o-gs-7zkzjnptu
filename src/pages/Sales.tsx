@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAppContext, Product, SaleItem, Sale } from '@/context/AppContext'
+import { useAppContext, Product, SaleItem, Sale, PaymentMethod } from '@/context/AppContext'
 import { formatCurrency, exportSalesToExcel } from '@/lib/utils'
 import {
   Search,
@@ -10,6 +10,8 @@ import {
   Printer,
   FileSpreadsheet,
   FileText,
+  Minus,
+  Plus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,6 +45,7 @@ export default function Sales() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('none')
   const [useCashback, setUseCashback] = useState(false)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Dinheiro')
 
   const [completedSale, setCompletedSale] = useState<Sale | null>(null)
 
@@ -69,6 +72,33 @@ export default function Sales() {
       }
       return [...prev, { product, quantity: 1, total: product.price }]
     })
+  }
+
+  const updateQuantity = (productId: string, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      setCart((c) => c.filter((i) => i.product.id !== productId))
+      return
+    }
+
+    const product = products.find((p) => p.id === productId)
+    if (!product) return
+
+    if (newQuantity > product.stock) {
+      toast({
+        variant: 'destructive',
+        title: 'Estoque insuficiente',
+        description: `O estoque atual é de ${product.stock} ${product.unit}.`,
+      })
+      return
+    }
+
+    setCart((prev) =>
+      prev.map((item) =>
+        item.product.id === productId
+          ? { ...item, quantity: newQuantity, total: newQuantity * item.product.price }
+          : item,
+      ),
+    )
   }
 
   const handleBarcodeScan = (e: React.FormEvent) => {
@@ -102,6 +132,15 @@ export default function Sales() {
   const cashbackEarned = finalTotal * (cashbackPercentage / 100)
 
   const handleCheckout = () => {
+    if (paymentMethod === 'Venda a Prazo' && selectedCustomerId === 'none') {
+      toast({
+        variant: 'destructive',
+        title: 'Cliente obrigatório',
+        description: 'Para Venda a Prazo, é obrigatório selecionar um cliente cadastrado.',
+      })
+      return
+    }
+
     const sale = addSale({
       customerId: selectedCustomerId !== 'none' ? selectedCustomerId : undefined,
       customer: selectedCustomer?.name || 'Consumidor Final',
@@ -110,6 +149,7 @@ export default function Sales() {
       cashbackUsed: appliedCashback,
       cashbackEarned:
         cashbackEarned > 0 && selectedCustomerId !== 'none' ? cashbackEarned : undefined,
+      paymentMethod,
     })
     setCompletedSale(sale)
     setCart([])
@@ -208,13 +248,34 @@ export default function Sales() {
                       key={item.product.id}
                       className="flex justify-between items-start border-b pb-3"
                     >
-                      <div className="flex-1">
+                      <div className="flex-1 pr-2">
                         <p className="font-medium text-sm leading-tight">{item.product.name}</p>
                         <div className="text-xs text-muted-foreground mt-1">
-                          {item.quantity} {item.product.unit} x {formatCurrency(item.product.price)}
+                          {formatCurrency(item.product.price)} / {item.product.unit}
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="text-sm w-6 text-center font-medium">
+                            {item.quantity}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-2 ml-2">
+                      <div className="flex flex-col items-end gap-2">
                         <span className="font-bold text-sm">{formatCurrency(item.total)}</span>
                         <Button
                           variant="ghost"
@@ -259,7 +320,7 @@ export default function Sales() {
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label>Cliente (Fidelidade)</Label>
+              <Label>Cliente (Fidelidade / Prazo)</Label>
               <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um cliente" />
@@ -275,7 +336,26 @@ export default function Sales() {
               </Select>
             </div>
 
-            {selectedCustomer && (
+            <div className="space-y-2">
+              <Label>Forma de Pagamento</Label>
+              <Select
+                value={paymentMethod}
+                onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a forma de pagamento" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Dinheiro">Dinheiro</SelectItem>
+                  <SelectItem value="PIX">PIX</SelectItem>
+                  <SelectItem value="Cartão de Crédito">Cartão de Crédito</SelectItem>
+                  <SelectItem value="Cartão de Débito">Cartão de Débito</SelectItem>
+                  <SelectItem value="Venda a Prazo">Venda a Prazo</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedCustomer && paymentMethod !== 'Venda a Prazo' && (
               <div className="bg-emerald-50 p-3 rounded-md border border-emerald-100 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-emerald-800">Cashback Disponível</p>
@@ -306,7 +386,7 @@ export default function Sales() {
                 <span>Subtotal:</span>
                 <span>{formatCurrency(cartTotal)}</span>
               </div>
-              {appliedCashback > 0 && (
+              {appliedCashback > 0 && paymentMethod !== 'Venda a Prazo' && (
                 <div className="flex justify-between text-sm text-emerald-600 font-medium">
                   <span>Desconto Cashback:</span>
                   <span>-{formatCurrency(appliedCashback)}</span>
@@ -315,14 +395,16 @@ export default function Sales() {
               <div className="flex justify-between items-center mt-2 pt-2 border-t">
                 <span className="font-medium text-lg">A Pagar:</span>
                 <span className="text-2xl font-bold text-primary">
-                  {formatCurrency(finalTotal)}
+                  {formatCurrency(paymentMethod === 'Venda a Prazo' ? cartTotal : finalTotal)}
                 </span>
               </div>
-              {cashbackEarned > 0 && selectedCustomerId !== 'none' && (
-                <div className="text-right text-xs text-emerald-600 mt-1 font-medium">
-                  + {formatCurrency(cashbackEarned)} de cashback gerado
-                </div>
-              )}
+              {cashbackEarned > 0 &&
+                selectedCustomerId !== 'none' &&
+                paymentMethod !== 'Venda a Prazo' && (
+                  <div className="text-right text-xs text-emerald-600 mt-1 font-medium">
+                    + {formatCurrency(cashbackEarned)} de cashback gerado
+                  </div>
+                )}
             </div>
           </div>
           <DialogFooter>
@@ -351,6 +433,7 @@ export default function Sales() {
               </div>
               <div>Cliente: {completedSale?.customer}</div>
               <div>ID: {completedSale?.id}</div>
+              <div>Pagamento: {completedSale?.paymentMethod}</div>
             </div>
             <table className="w-full mb-2 text-[10px]">
               <thead>
@@ -371,7 +454,7 @@ export default function Sales() {
               </tbody>
             </table>
             <div className="border-t border-dashed border-gray-400 pt-2 text-right">
-              {completedSale?.cashbackUsed ? (
+              {completedSale?.cashbackUsed && completedSale.paymentMethod !== 'Venda a Prazo' ? (
                 <div className="text-[10px] mb-1">
                   Desconto Fid.: -{formatCurrency(completedSale.cashbackUsed)}
                 </div>
@@ -379,12 +462,33 @@ export default function Sales() {
               <div className="font-bold text-sm">
                 TOTAL R$: {formatCurrency(completedSale?.total || 0)}
               </div>
-              {completedSale?.cashbackEarned ? (
+              {completedSale?.cashbackEarned && completedSale.paymentMethod !== 'Venda a Prazo' ? (
                 <div className="text-[10px] mt-2 border-t border-dashed border-gray-400 pt-2">
                   Cashback Ganho: {formatCurrency(completedSale.cashbackEarned)}
                 </div>
               ) : null}
             </div>
+
+            {completedSale?.paymentMethod === 'Venda a Prazo' && (
+              <div className="mt-6 pt-4 border-t border-dashed border-gray-400">
+                <div className="text-center font-bold mb-2 text-sm">CONTRATO DE VENDA A PRAZO</div>
+                <p className="text-justify text-[10px] mb-8 leading-tight">
+                  Reconheço a exatidão desta nota de venda a prazo na importância de{' '}
+                  {formatCurrency(completedSale.total)} que pagarei à CONSTRUMASTER, ou à sua ordem.
+                </p>
+                <div className="mt-10 border-t border-black w-4/5 mx-auto text-center pt-1">
+                  Assinatura do Cliente
+                </div>
+                <div className="text-center text-[10px] mt-1 font-bold">
+                  {completedSale.customer}
+                </div>
+                {completedSale.customerId && (
+                  <div className="text-center text-[10px] mt-1">
+                    Doc: {customers.find((c) => c.id === completedSale.customerId)?.document || ''}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter className="print:hidden">
             <Button variant="outline" onClick={() => setCompletedSale(null)}>
