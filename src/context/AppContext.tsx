@@ -43,10 +43,12 @@ export interface Sale {
   customer?: string
   items: SaleItem[]
   total: number
+  discount?: number
   status: 'Pendente' | 'Pago' | 'Cancelado'
   cashbackEarned?: number
   cashbackUsed?: number
   paymentMethod?: PaymentMethod
+  dueDate?: string
 }
 
 interface AppContextType {
@@ -57,6 +59,7 @@ interface AppContextType {
   sales: Sale[]
   setSales: (sales: Sale[]) => void
   addSale: (sale: Omit<Sale, 'id' | 'date' | 'status'>) => Sale
+  markSaleAsPaid: (id: string) => void
   customers: Customer[]
   setCustomers: (customers: Customer[]) => void
   cashbackPercentage: number
@@ -137,6 +140,17 @@ const initialSales: Sale[] = [
     cashbackEarned: 29.01,
     paymentMethod: 'PIX',
   },
+  {
+    id: 'V-1002',
+    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    customerId: '1',
+    customer: 'Construtora Alpha Ltda',
+    items: [],
+    total: 5800.0,
+    status: 'Pendente',
+    paymentMethod: 'Venda a Prazo',
+    dueDate: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString(),
+  },
 ]
 
 const AppContext = createContext<AppContextType | undefined>(undefined)
@@ -149,11 +163,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const cashbackPercentage = 2 // 2% cashback system-wide
 
   const addSale = (newSale: Omit<Sale, 'id' | 'date' | 'status'>): Sale => {
+    const isCredit = newSale.paymentMethod === 'Venda a Prazo'
     const sale: Sale = {
       ...newSale,
       id: `V-${1000 + sales.length + 1}`,
       date: new Date().toISOString(),
-      status: newSale.paymentMethod === 'Venda a Prazo' ? 'Pendente' : 'Pago',
+      status: isCredit ? 'Pendente' : 'Pago',
+      dueDate: isCredit ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : undefined,
     }
     setSales([sale, ...sales])
 
@@ -187,6 +203,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return sale
   }
 
+  const markSaleAsPaid = (id: string) => {
+    setSales((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'Pago' } : s)))
+  }
+
   return (
     <AppContext.Provider
       value={{
@@ -197,6 +217,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         sales,
         setSales,
         addSale,
+        markSaleAsPaid,
         customers,
         setCustomers,
         cashbackPercentage,

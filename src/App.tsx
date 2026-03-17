@@ -11,6 +11,7 @@ import Invoices from './pages/Invoices'
 import Customers from './pages/Customers'
 import Staff from './pages/Staff'
 import Reports from './pages/Reports'
+import Receivables from './pages/Receivables'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/clientes" element={<Customers />} />
             <Route path="/colaboradores" element={<Staff />} />
             <Route path="/relatorios" element={<Reports />} />
+            <Route path="/contas-receber" element={<Receivables />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -8,6 +8,7 @@ import {
   UserCog,
   BarChart3,
   HardHat,
+  Landmark,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -31,6 +32,7 @@ const allItems = [
   },
   { title: 'PDV / Vendas', url: '/vendas', icon: ShoppingCart, roles: ['Admin', 'Vendedor'] },
   { title: 'Estoque', url: '/estoque', icon: Package, roles: ['Admin', 'Estoquista'] },
+  { title: 'Contas a Receber', url: '/contas-receber', icon: Landmark, roles: ['Admin'] },
   { title: 'Notas Fiscais', url: '/notas-fiscais', icon: ReceiptText, roles: ['Admin'] },
   { title: 'Clientes', url: '/clientes', icon: Users, roles: ['Admin', 'Vendedor'] },
   { title: 'Colaboradores', url: '/colaboradores', icon: UserCog, roles: ['Admin'] },
