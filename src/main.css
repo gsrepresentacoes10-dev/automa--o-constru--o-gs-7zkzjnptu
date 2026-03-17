@@ -89,3 +89,27 @@
     scrollbar-width: none;
   }
 }
+
+@media print {
+  body.printing-receipt * {
+    visibility: hidden;
+  }
+  body.printing-receipt .thermal-receipt,
+  body.printing-receipt .thermal-receipt * {
+    visibility: visible;
+  }
+  body.printing-receipt .thermal-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm;
+    margin: 0;
+    padding: 4mm;
+    border: none;
+    font-family: monospace;
+    font-size: 12px;
+  }
+  body:not(.printing-receipt) {
+    background-color: white !important;
+  }
+}

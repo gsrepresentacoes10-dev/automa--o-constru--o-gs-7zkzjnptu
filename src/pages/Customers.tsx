@@ -10,39 +10,18 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatCurrency } from '@/lib/utils'
+import { useAppContext } from '@/context/AppContext'
 
 export default function Customers() {
-  const mockCustomers = [
-    {
-      id: '1',
-      name: 'Construtora Alpha Ltda',
-      document: '12.345.678/0001-90',
-      phone: '(11) 98765-4321',
-      totalSpent: 45600.0,
-    },
-    {
-      id: '2',
-      name: 'João Silva',
-      document: '123.456.789-00',
-      phone: '(11) 91234-5678',
-      totalSpent: 3450.5,
-    },
-    {
-      id: '3',
-      name: 'Maria Souza',
-      document: '987.654.321-11',
-      phone: '(11) 99876-5432',
-      totalSpent: 890.0,
-    },
-  ]
+  const { customers } = useAppContext()
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Clientes</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Clientes e Fidelidade</h1>
           <p className="text-muted-foreground">
-            Gerencie sua carteira de clientes e histórico de compras.
+            Gerencie sua carteira de clientes, histórico de compras e saldos de cashback.
           </p>
         </div>
       </div>
@@ -62,10 +41,11 @@ export default function Customers() {
                 <TableHead>CPF/CNPJ</TableHead>
                 <TableHead>Telefone</TableHead>
                 <TableHead className="text-right">Total Comprado</TableHead>
+                <TableHead className="text-right">Saldo Cashback</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockCustomers.map((c) => (
+              {customers.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium flex items-center gap-2">
                     <div className="bg-primary/10 p-2 rounded-full">
@@ -75,8 +55,11 @@ export default function Customers() {
                   </TableCell>
                   <TableCell>{c.document}</TableCell>
                   <TableCell>{c.phone}</TableCell>
-                  <TableCell className="text-right font-bold text-primary">
+                  <TableCell className="text-right font-medium">
                     {formatCurrency(c.totalSpent)}
+                  </TableCell>
+                  <TableCell className="text-right font-bold text-emerald-600">
+                    {formatCurrency(c.cashbackBalance)}
                   </TableCell>
                 </TableRow>
               ))}

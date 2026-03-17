@@ -24,9 +24,11 @@ export default function Layout() {
 
   return (
     <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset className="flex flex-col h-screen overflow-hidden">
-        <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-4 shadow-sm z-10">
+      <div className="print:hidden h-full flex flex-col">
+        <AppSidebar />
+      </div>
+      <SidebarInset className="flex flex-col h-screen overflow-hidden print:h-auto print:overflow-visible">
+        <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b bg-background px-4 shadow-sm z-10 print:hidden">
           <div className="flex items-center gap-2 flex-1">
             <SidebarTrigger />
             <div className="hidden md:flex relative max-w-md w-full ml-4">
@@ -87,8 +89,11 @@ export default function Layout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-6" key={location.pathname}>
-          <div className="animate-slide-in-right h-full">
+        <main
+          className="flex-1 overflow-y-auto bg-muted/20 p-4 md:p-6 print:bg-transparent print:p-0 print:overflow-visible"
+          key={location.pathname}
+        >
+          <div className="animate-slide-in-right h-full print:animate-none">
             <Outlet />
           </div>
         </main>

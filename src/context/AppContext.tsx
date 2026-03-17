@@ -14,6 +14,15 @@ export interface Product {
   minStock: number
 }
 
+export interface Customer {
+  id: string
+  name: string
+  document: string
+  phone: string
+  totalSpent: number
+  cashbackBalance: number
+}
+
 export interface SaleItem {
   product: Product
   quantity: number
@@ -23,10 +32,13 @@ export interface SaleItem {
 export interface Sale {
   id: string
   date: string
+  customerId?: string
   customer?: string
   items: SaleItem[]
   total: number
   status: 'Pendente' | 'Pago' | 'Cancelado'
+  cashbackEarned?: number
+  cashbackUsed?: number
 }
 
 interface AppContextType {
@@ -36,7 +48,10 @@ interface AppContextType {
   setProducts: (products: Product[]) => void
   sales: Sale[]
   setSales: (sales: Sale[]) => void
-  addSale: (sale: Omit<Sale, 'id' | 'date' | 'status'>) => void
+  addSale: (sale: Omit<Sale, 'id' | 'date' | 'status'>) => Sale
+  customers: Customer[]
+  setCustomers: (customers: Customer[]) => void
+  cashbackPercentage: number
 }
 
 const initialProducts: Product[] = [
@@ -73,38 +88,32 @@ const initialProducts: Product[] = [
     stock: 45,
     minStock: 30,
   },
+]
+
+const initialCustomers: Customer[] = [
   {
-    id: '4',
-    sku: 'PVC-100',
-    name: 'Tubo PVC 100mm',
-    category: 'Hidráulica',
-    unit: 'un',
-    price: 42.0,
-    costPrice: 25.0,
-    stock: 80,
-    minStock: 50,
+    id: '1',
+    name: 'Construtora Alpha Ltda',
+    document: '12.345.678/0001-90',
+    phone: '(11) 98765-4321',
+    totalSpent: 45600.0,
+    cashbackBalance: 125.5,
   },
   {
-    id: '5',
-    sku: 'FIO-250',
-    name: 'Fio Flexível 2.5mm 100m',
-    category: 'Elétrica',
-    unit: 'rl',
-    price: 185.0,
-    costPrice: 130.0,
-    stock: 4,
-    minStock: 10,
+    id: '2',
+    name: 'João Silva',
+    document: '123.456.789-00',
+    phone: '(11) 91234-5678',
+    totalSpent: 3450.5,
+    cashbackBalance: 45.0,
   },
   {
-    id: '6',
-    sku: 'TIN-018',
-    name: 'Tinta Acrílica Branca 18L',
-    category: 'Pintura',
-    unit: 'lt',
-    price: 259.9,
-    costPrice: 190.0,
-    stock: 15,
-    minStock: 10,
+    id: '3',
+    name: 'Maria Souza',
+    document: '987.654.321-11',
+    phone: '(11) 99876-5432',
+    totalSpent: 890.0,
+    cashbackBalance: 0,
   },
 ]
 
@@ -112,25 +121,12 @@ const initialSales: Sale[] = [
   {
     id: 'V-1001',
     date: new Date().toISOString(),
+    customerId: '2',
     customer: 'João Silva',
     items: [],
     total: 1450.5,
     status: 'Pago',
-  },
-  {
-    id: 'V-1002',
-    date: new Date(Date.now() - 86400000).toISOString(),
-    customer: 'Maria Souza',
-    items: [],
-    total: 320.0,
-    status: 'Pago',
-  },
-  {
-    id: 'V-1003',
-    date: new Date(Date.now() - 172800000).toISOString(),
-    items: [],
-    total: 85.9,
-    status: 'Pendente',
+    cashbackEarned: 29.01,
   },
 ]
 
@@ -140,8 +136,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role>('Admin')
   const [products, setProducts] = useState<Product[]>(initialProducts)
   const [sales, setSales] = useState<Sale[]>(initialSales)
+  const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
+  const cashbackPercentage = 2 // 2% cashback system-wide
 
-  const addSale = (newSale: Omit<Sale, 'id' | 'date' | 'status'>) => {
+  const addSale = (newSale: Omit<Sale, 'id' | 'date' | 'status'>): Sale => {
     const sale: Sale = {
       ...newSale,
       id: `V-${1000 + sales.length + 1}`,
@@ -159,10 +157,42 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return p
     })
     setProducts(updatedProducts)
+
+    // Update Customer Cashback and Total Spent
+    if (sale.customerId) {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          if (c.id === sale.customerId) {
+            return {
+              ...c,
+              totalSpent: c.totalSpent + sale.total,
+              cashbackBalance:
+                c.cashbackBalance - (sale.cashbackUsed || 0) + (sale.cashbackEarned || 0),
+            }
+          }
+          return c
+        }),
+      )
+    }
+
+    return sale
   }
 
   return (
-    <AppContext.Provider value={{ role, setRole, products, setProducts, sales, setSales, addSale }}>
+    <AppContext.Provider
+      value={{
+        role,
+        setRole,
+        products,
+        setProducts,
+        sales,
+        setSales,
+        addSale,
+        customers,
+        setCustomers,
+        cashbackPercentage,
+      }}
+    >
       {children}
     </AppContext.Provider>
   )

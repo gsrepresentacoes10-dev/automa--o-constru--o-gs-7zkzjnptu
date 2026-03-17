@@ -1,5 +1,9 @@
-import { BarChart3 } from 'lucide-react'
+import { BarChart3, FileSpreadsheet, FileText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { useAppContext } from '@/context/AppContext'
+import { exportSalesToExcel } from '@/lib/utils'
+import { PrintableSales } from '@/components/PrintableSales'
 import {
   ChartContainer,
   ChartTooltip,
@@ -19,6 +23,8 @@ import {
 } from 'recharts'
 
 export default function Reports() {
+  const { sales } = useAppContext()
+
   const chartData = [
     { month: 'Jan', vendas: 45000, custos: 32000 },
     { month: 'Fev', vendas: 52000, custos: 34000 },
@@ -29,14 +35,8 @@ export default function Reports() {
   ]
 
   const chartConfig = {
-    vendas: {
-      label: 'Faturamento',
-      color: 'hsl(var(--primary))',
-    },
-    custos: {
-      label: 'Custos',
-      color: 'hsl(var(--muted-foreground))',
-    },
+    vendas: { label: 'Faturamento', color: 'hsl(var(--primary))' },
+    custos: { label: 'Custos', color: 'hsl(var(--muted-foreground))' },
   }
 
   const categoryData = [
@@ -51,19 +51,27 @@ export default function Reports() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Relatórios de Desempenho</h1>
-        <p className="text-muted-foreground">Análise gráfica das vendas e saúde financeira.</p>
+    <div className="space-y-6 h-full">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Relatórios de Desempenho</h1>
+          <p className="text-muted-foreground">Análise gráfica das vendas e saúde financeira.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => exportSalesToExcel(sales)}>
+            <FileSpreadsheet className="mr-2 h-4 w-4" /> Exportar Excel
+          </Button>
+          <Button variant="outline" onClick={() => window.print()}>
+            <FileText className="mr-2 h-4 w-4" /> Exportar PDF
+          </Button>
+        </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 print:hidden">
         <Card>
           <CardHeader>
-            <CardTitle>Faturamento vs Custos (1S 2024)</CardTitle>
-            <CardDescription>
-              Evolução mensal do faturamento bruto e custos de mercadoria.
-            </CardDescription>
+            <CardTitle>Faturamento vs Custos (1S)</CardTitle>
+            <CardDescription>Evolução mensal financeira.</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[300px] w-full">
@@ -106,7 +114,7 @@ export default function Reports() {
         <Card>
           <CardHeader>
             <CardTitle>Vendas por Categoria</CardTitle>
-            <CardDescription>Distribuição percentual por grupo de produtos.</CardDescription>
+            <CardDescription>Distribuição percentual por grupo.</CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={catConfig} className="h-[300px] w-full">
@@ -136,6 +144,8 @@ export default function Reports() {
           </CardContent>
         </Card>
       </div>
+
+      <PrintableSales sales={sales} />
     </div>
   )
 }

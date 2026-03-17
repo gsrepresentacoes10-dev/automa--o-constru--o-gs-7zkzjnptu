@@ -11,3 +11,32 @@ export function formatCurrency(value: number) {
     currency: 'BRL',
   }).format(value)
 }
+
+export function exportSalesToExcel(sales: any[]) {
+  const rows = [['Data', 'Produto', 'Categoria', 'Quantidade', 'Preço Unitário', 'Total']]
+  sales.forEach((sale) => {
+    const date = new Date(sale.date).toLocaleDateString('pt-BR')
+    if (sale.items && sale.items.length > 0) {
+      sale.items.forEach((item: any) => {
+        rows.push([
+          date,
+          `"${item.product.name}"`,
+          `"${item.product.category}"`,
+          item.quantity.toString(),
+          item.product.price.toString(),
+          item.total.toString(),
+        ])
+      })
+    }
+  })
+  const csvContent = rows.map((e) => e.join(',')).join('\n')
+  const blob = new Blob([new Uint8Array([0xef, 0xbb, 0xbf]), csvContent], {
+    type: 'text/csv;charset=utf-8;',
+  })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = 'vendas.csv'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
