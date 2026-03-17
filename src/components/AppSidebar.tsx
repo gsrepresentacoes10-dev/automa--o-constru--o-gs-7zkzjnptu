@@ -9,6 +9,9 @@ import {
   BarChart3,
   HardHat,
   Landmark,
+  FileText,
+  ShoppingBag,
+  Truck,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -25,13 +28,16 @@ import { useAppContext } from '@/context/AppContext'
 
 const allItems = [
   {
-    title: 'Dashboard',
+    title: 'Dashboard (BI)',
     url: '/',
     icon: LayoutDashboard,
     roles: ['Admin', 'Vendedor', 'Estoquista'],
   },
   { title: 'PDV / Vendas', url: '/vendas', icon: ShoppingCart, roles: ['Admin', 'Vendedor'] },
+  { title: 'Orçamentos', url: '/orcamentos', icon: FileText, roles: ['Admin', 'Vendedor'] },
   { title: 'Estoque', url: '/estoque', icon: Package, roles: ['Admin', 'Estoquista'] },
+  { title: 'Compras', url: '/compras', icon: ShoppingBag, roles: ['Admin', 'Estoquista'] },
+  { title: 'Fornecedores', url: '/fornecedores', icon: Truck, roles: ['Admin', 'Estoquista'] },
   { title: 'Contas a Receber', url: '/contas-receber', icon: Landmark, roles: ['Admin'] },
   { title: 'Notas Fiscais', url: '/notas-fiscais', icon: ReceiptText, roles: ['Admin'] },
   { title: 'Clientes', url: '/clientes', icon: Users, roles: ['Admin', 'Vendedor'] },

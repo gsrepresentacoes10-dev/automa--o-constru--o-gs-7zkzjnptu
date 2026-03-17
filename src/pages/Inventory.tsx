@@ -150,13 +150,13 @@ export default function Inventory() {
                 <TableHead>Produto</TableHead>
                 <TableHead>Categoria</TableHead>
                 <TableHead className="text-right">Preço Venda</TableHead>
-                <TableHead className="text-center">Estoque</TableHead>
+                <TableHead className="text-center">Estoque Atual</TableHead>
                 <TableHead className="text-center">Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredProducts.map((product) => {
-                const isLow = product.stock < product.minStock
+                const isLow = product.stock <= product.minStock
                 return (
                   <TableRow key={product.id} className={isLow ? 'bg-destructive/5' : ''}>
                     <TableCell>
@@ -170,13 +170,18 @@ export default function Inventory() {
                       {formatCurrency(product.price)}
                     </TableCell>
                     <TableCell className="text-center">
-                      {product.stock}{' '}
+                      <span className={isLow ? 'font-bold text-destructive' : ''}>
+                        {product.stock}
+                      </span>{' '}
                       <span className="text-xs text-muted-foreground">{product.unit}</span>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Mín: {product.minStock}
+                      </p>
                     </TableCell>
                     <TableCell className="text-center">
                       {isLow ? (
-                        <div className="flex items-center justify-center text-destructive text-sm font-medium gap-1">
-                          <AlertTriangle className="h-4 w-4" /> Baixo
+                        <div className="flex items-center justify-center text-destructive text-xs font-bold gap-1 bg-destructive/10 py-1 px-2 rounded-full w-fit mx-auto">
+                          <AlertTriangle className="h-3 w-3" /> Baixo Estoque
                         </div>
                       ) : (
                         <span className="text-emerald-600 text-sm font-medium">Normal</span>

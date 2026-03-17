@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from 'react'
+import { toast } from '@/hooks/use-toast'
 
 export type Role = 'Admin' | 'Vendedor' | 'Estoquista'
 
@@ -51,6 +52,39 @@ export interface Sale {
   dueDate?: string
 }
 
+export interface Supplier {
+  id: string
+  name: string
+  document: string
+  contact: string
+}
+
+export interface PurchaseItem {
+  product: Product
+  quantity: number
+  costPrice: number
+}
+
+export interface Purchase {
+  id: string
+  date: string
+  supplierId: string
+  supplierName?: string
+  items: PurchaseItem[]
+  total: number
+}
+
+export interface Quote {
+  id: string
+  date: string
+  customerId?: string
+  customer?: string
+  items: SaleItem[]
+  total: number
+  discount?: number
+  status: 'Pendente' | 'Convertido' | 'Cancelado'
+}
+
 interface AppContextType {
   role: Role
   setRole: (role: Role) => void
@@ -63,6 +97,13 @@ interface AppContextType {
   customers: Customer[]
   setCustomers: (customers: Customer[]) => void
   cashbackPercentage: number
+  suppliers: Supplier[]
+  setSuppliers: (suppliers: Supplier[]) => void
+  purchases: Purchase[]
+  addPurchase: (purchase: Omit<Purchase, 'id' | 'date'>) => void
+  quotes: Quote[]
+  addQuote: (quote: Omit<Quote, 'id' | 'date' | 'status'>) => void
+  convertQuoteToSale: (quoteId: string, paymentMethod: PaymentMethod) => void
 }
 
 const initialProducts: Product[] = [
@@ -118,14 +159,6 @@ const initialCustomers: Customer[] = [
     totalSpent: 3450.5,
     cashbackBalance: 45.0,
   },
-  {
-    id: '3',
-    name: 'Maria Souza',
-    document: '987.654.321-11',
-    phone: '(11) 99876-5432',
-    totalSpent: 890.0,
-    cashbackBalance: 0,
-  },
 ]
 
 const initialSales: Sale[] = [
@@ -153,6 +186,15 @@ const initialSales: Sale[] = [
   },
 ]
 
+const initialSuppliers: Supplier[] = [
+  {
+    id: '1',
+    name: 'Votorantim Cimentos',
+    document: '00.000.000/0001-91',
+    contact: '(11) 4000-0000',
+  },
+]
+
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -160,7 +202,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>(initialProducts)
   const [sales, setSales] = useState<Sale[]>(initialSales)
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
-  const cashbackPercentage = 2 // 2% cashback system-wide
+  const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers)
+  const [purchases, setPurchases] = useState<Purchase[]>([])
+  const [quotes, setQuotes] = useState<Quote[]>([])
+  const cashbackPercentage = 2
+
+  const addPurchase = (newPurchase: Omit<Purchase, 'id' | 'date'>) => {
+    const purchase: Purchase = {
+      ...newPurchase,
+      id: `C-${1000 + purchases.length + 1}`,
+      date: new Date().toISOString(),
+    }
+    setPurchases([purchase, ...purchases])
+
+    const updatedProducts = products.map((p) => {
+      const pItem = newPurchase.items.find((item) => item.product.id === p.id)
+      if (pItem) {
+        return { ...p, stock: p.stock + pItem.quantity, costPrice: pItem.costPrice }
+      }
+      return p
+    })
+    setProducts(updatedProducts)
+
+    toast({
+      title: 'Entrada Registrada',
+      description: 'Estoque atualizado com sucesso.',
+    })
+  }
+
+  const addQuote = (newQuote: Omit<Quote, 'id' | 'date' | 'status'>) => {
+    const quote: Quote = {
+      ...newQuote,
+      id: `ORC-${1000 + quotes.length + 1}`,
+      date: new Date().toISOString(),
+      status: 'Pendente',
+    }
+    setQuotes([quote, ...quotes])
+    toast({ title: 'Orçamento Salvo', description: `Orçamento ${quote.id} criado com sucesso.` })
+  }
+
+  const convertQuoteToSale = (quoteId: string, paymentMethod: PaymentMethod) => {
+    const quote = quotes.find((q) => q.id === quoteId)
+    if (!quote) return
+
+    setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, status: 'Convertido' } : q)))
+
+    addSale({
+      customerId: quote.customerId,
+      customer: quote.customer,
+      items: quote.items,
+      total: quote.total,
+      discount: quote.discount,
+      paymentMethod,
+    })
+    toast({
+      title: 'Orçamento Convertido',
+      description: 'O orçamento foi convertido em venda e o estoque foi atualizado.',
+    })
+  }
 
   const addSale = (newSale: Omit<Sale, 'id' | 'date' | 'status'>): Sale => {
     const isCredit = newSale.paymentMethod === 'Venda a Prazo'
@@ -173,17 +272,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     setSales([sale, ...sales])
 
-    // Update stock
     const updatedProducts = products.map((p) => {
       const soldItem = newSale.items.find((item) => item.product.id === p.id)
       if (soldItem) {
-        return { ...p, stock: p.stock - soldItem.quantity }
+        const newStock = p.stock - soldItem.quantity
+        if (newStock <= p.minStock && p.stock > p.minStock) {
+          setTimeout(() => {
+            toast({
+              title: 'Alerta de Estoque: Email Enviado',
+              description: `O produto ${p.name} atingiu o estoque mínimo de ${p.minStock}. O setor de compras foi notificado.`,
+              variant: 'destructive',
+            })
+          }, 500)
+        }
+        return { ...p, stock: newStock }
       }
       return p
     })
     setProducts(updatedProducts)
 
-    // Update Customer Cashback and Total Spent
     if (sale.customerId) {
       setCustomers((prev) =>
         prev.map((c) => {
@@ -221,6 +328,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         customers,
         setCustomers,
         cashbackPercentage,
+        suppliers,
+        setSuppliers,
+        purchases,
+        addPurchase,
+        quotes,
+        addQuote,
+        convertQuoteToSale,
       }}
     >
       {children}

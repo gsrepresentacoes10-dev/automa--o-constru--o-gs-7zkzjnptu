@@ -12,6 +12,9 @@ import Customers from './pages/Customers'
 import Staff from './pages/Staff'
 import Reports from './pages/Reports'
 import Receivables from './pages/Receivables'
+import Suppliers from './pages/Suppliers'
+import Purchases from './pages/Purchases'
+import Quotes from './pages/Quotes'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -25,6 +28,9 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/estoque" element={<Inventory />} />
             <Route path="/vendas" element={<Sales />} />
+            <Route path="/orcamentos" element={<Quotes />} />
+            <Route path="/compras" element={<Purchases />} />
+            <Route path="/fornecedores" element={<Suppliers />} />
             <Route path="/notas-fiscais" element={<Invoices />} />
             <Route path="/clientes" element={<Customers />} />
             <Route path="/colaboradores" element={<Staff />} />
