@@ -1,5 +1,12 @@
 import { useState } from 'react'
-import { useAppContext, Product, SaleItem, Sale, PaymentMethod } from '@/context/AppContext'
+import {
+  useAppContext,
+  Product,
+  SaleItem,
+  Sale,
+  PaymentMethod,
+  PreSale,
+} from '@/context/AppContext'
 import { formatCurrency } from '@/lib/utils'
 import {
   Search,
@@ -14,6 +21,9 @@ import {
   Copy,
   MessageCircle,
   Eye,
+  Save,
+  Play,
+  RotateCcw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,10 +58,27 @@ import {
 import { Badge } from '@/components/ui/badge'
 
 export default function Sales() {
-  const { products, sales, customers, addSale, cashbackPercentage } = useAppContext()
+  const {
+    products,
+    sales,
+    customers,
+    addSale,
+    cashbackPercentage,
+    preSales,
+    addPreSale,
+    updatePreSale,
+    deletePreSale,
+  } = useAppContext()
+
+  const [activeTab, setActiveTab] = useState('pdv')
+
   const [searchTerm, setSearchTerm] = useState('')
   const [barcode, setBarcode] = useState('')
   const [cart, setCart] = useState<SaleItem[]>([])
+
+  const [activePreSaleId, setActivePreSaleId] = useState<string | null>(null)
+  const [isSavePreSaleOpen, setIsSavePreSaleOpen] = useState(false)
+  const [preSaleCustomerName, setPreSaleCustomerName] = useState('')
 
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('none')
@@ -71,6 +98,13 @@ export default function Sales() {
         p.sku.toLowerCase().includes(searchTerm.toLowerCase())) &&
       p.stock > 0,
   )
+
+  const clearCart = () => {
+    setCart([])
+    setDiscountValue('')
+    setActivePreSaleId(null)
+    setPreSaleCustomerName('')
+  }
 
   const addToCart = (product: Product) => {
     setCart((prev) => {
@@ -156,9 +190,43 @@ export default function Sales() {
   const finalTotal = cartTotalWithDiscount - appliedCashback
   const cashbackEarned = finalTotal * (cashbackPercentage / 100)
 
-  const copyPixCode = () => {
-    navigator.clipboard.writeText('00020126580014br.gov.bcb.pix0136-mock-code-1234')
-    toast({ title: 'Código PIX copiado com sucesso!' })
+  const handleSavePreSale = () => {
+    if (!preSaleCustomerName.trim()) {
+      toast({ variant: 'destructive', title: 'Informe o nome do cliente' })
+      return
+    }
+
+    const payload = {
+      customerName: preSaleCustomerName,
+      items: cart.filter((i) => i.quantity > 0),
+      total: cartTotalWithDiscount,
+      discountType,
+      discountValue,
+    }
+
+    if (activePreSaleId) {
+      updatePreSale(activePreSaleId, payload)
+      toast({ title: 'Pré-venda atualizada com sucesso!' })
+    } else {
+      addPreSale(payload)
+      toast({ title: 'Pré-venda salva com sucesso!' })
+    }
+
+    clearCart()
+    setIsSavePreSaleOpen(false)
+  }
+
+  const resumePreSale = (ps: PreSale) => {
+    setCart(ps.items)
+    setDiscountType(ps.discountType)
+    setDiscountValue(ps.discountValue)
+    setActivePreSaleId(ps.id)
+    setPreSaleCustomerName(ps.customerName)
+    setActiveTab('pdv')
+    toast({
+      title: `Pré-venda ${ps.id} carregada`,
+      description: 'Edite os itens e finalize o pagamento.',
+    })
   }
 
   const handleCheckout = () => {
@@ -185,11 +253,15 @@ export default function Sales() {
         cashbackEarned > 0 && selectedCustomerId !== 'none' ? cashbackEarned : undefined,
       paymentMethod,
     })
+
+    if (activePreSaleId) {
+      deletePreSale(activePreSaleId)
+    }
+
     setReceiptSale(sale)
-    setCart([])
+    clearCart()
     setSelectedCustomerId('none')
     setUseCashback(false)
-    setDiscountValue('')
     setIsCheckoutOpen(false)
   }
 
@@ -223,7 +295,7 @@ export default function Sales() {
   }
 
   return (
-    <Tabs defaultValue="pdv" className="h-full flex flex-col space-y-4">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Vendas</h1>
@@ -231,6 +303,14 @@ export default function Sales() {
         </div>
         <TabsList>
           <TabsTrigger value="pdv">Caixa / PDV</TabsTrigger>
+          <TabsTrigger value="prevendas">
+            Pré-vendas
+            {preSales.length > 0 && (
+              <Badge variant="secondary" className="ml-2 bg-primary/20 hover:bg-primary/20">
+                {preSales.length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="historico">Histórico</TabsTrigger>
         </TabsList>
       </div>
@@ -289,10 +369,25 @@ export default function Sales() {
 
         {/* Right Panel: Cart */}
         <Card className="w-full lg:w-[400px] flex flex-col shadow-md">
-          <CardHeader className="bg-muted/30 pb-4 border-b">
+          <CardHeader className="bg-muted/30 pb-4 border-b flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5" /> Carrinho Atual
+              <ShoppingCart className="h-5 w-5" /> Carrinho
+              {activePreSaleId && (
+                <Badge variant="secondary" className="ml-1 text-[10px] uppercase">
+                  Editando {activePreSaleId}
+                </Badge>
+              )}
             </CardTitle>
+            {(cart.length > 0 || activePreSaleId) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-muted-foreground hover:text-foreground"
+                onClick={clearCart}
+              >
+                <RotateCcw className="h-3 w-3 mr-1" /> Limpar
+              </Button>
+            )}
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden p-0 flex flex-col">
             <ScrollArea className="flex-1 p-4">
@@ -408,21 +503,93 @@ export default function Sales() {
               </div>
             )}
           </CardContent>
-          <CardFooter className="flex-col gap-4 border-t p-4 bg-muted/10">
-            <div className="w-full flex justify-between items-center text-lg">
+          <CardFooter className="flex-col gap-3 border-t p-4 bg-muted/10">
+            <div className="w-full flex justify-between items-center text-lg mb-1">
               <span className="font-semibold text-muted-foreground">Total Geral</span>
               <span className="font-bold text-2xl text-primary">
                 {formatCurrency(cartTotalWithDiscount)}
               </span>
             </div>
-            <Button
-              className="w-full h-12 text-lg font-bold"
-              disabled={!hasValidItems}
-              onClick={() => setIsCheckoutOpen(true)}
-            >
-              Avançar para Pagamento
-            </Button>
+            <div className="flex gap-2 w-full">
+              <Button
+                variant="outline"
+                className="flex-1 h-12 bg-background shadow-sm hover:bg-muted font-medium"
+                disabled={!hasValidItems}
+                onClick={() => setIsSavePreSaleOpen(true)}
+              >
+                <Save className="mr-2 h-4 w-4" />
+                Salvar Pré-venda
+              </Button>
+              <Button
+                className="flex-1 h-12 font-bold"
+                disabled={!hasValidItems}
+                onClick={() => setIsCheckoutOpen(true)}
+              >
+                Pagamento
+              </Button>
+            </div>
           </CardFooter>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="prevendas" className="flex-1 mt-0">
+        <Card className="h-full flex flex-col">
+          <CardHeader>
+            <CardTitle>Pré-vendas Pendentes</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0 overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-6">Data / ID</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead className="text-center">Itens</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right pr-6">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {preSales.map((ps) => (
+                  <TableRow key={ps.id}>
+                    <TableCell className="pl-6">
+                      <div className="font-medium">
+                        {new Date(ps.date).toLocaleDateString('pt-BR')}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{ps.id}</div>
+                    </TableCell>
+                    <TableCell className="font-medium">{ps.customerName}</TableCell>
+                    <TableCell className="text-center">
+                      {ps.items.reduce((acc, i) => acc + i.quantity, 0)} unid.
+                    </TableCell>
+                    <TableCell className="text-right font-bold">
+                      {formatCurrency(ps.total)}
+                    </TableCell>
+                    <TableCell className="text-right pr-6 space-x-2">
+                      <Button variant="outline" size="sm" onClick={() => resumePreSale(ps)}>
+                        <Play className="h-4 w-4 mr-1" /> Retomar no PDV
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:bg-destructive/10"
+                        onClick={() => deletePreSale(ps.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {preSales.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                      <Save className="h-8 w-8 mx-auto mb-3 opacity-20" />
+                      Nenhuma pré-venda salva no momento.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
         </Card>
       </TabsContent>
 
@@ -490,6 +657,43 @@ export default function Sales() {
         </Card>
       </TabsContent>
 
+      {/* Save Pre-sale Dialog */}
+      <Dialog open={isSavePreSaleOpen} onOpenChange={setIsSavePreSaleOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              {activePreSaleId ? 'Atualizar Pré-venda' : 'Salvar Pré-venda'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="customerName">Nome do Cliente / Identificação do Pedido</Label>
+              <Input
+                id="customerName"
+                placeholder="Ex: João da Obra / Pedido WhatsApp"
+                value={preSaleCustomerName}
+                onChange={(e) => setPreSaleCustomerName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="bg-muted/50 p-3 rounded-md border text-sm flex justify-between items-center">
+              <span className="text-muted-foreground">Total do pedido:</span>
+              <span className="font-bold text-primary">
+                {formatCurrency(cartTotalWithDiscount)}
+              </span>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSavePreSaleOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSavePreSale}>
+              <Save className="mr-2 h-4 w-4" /> {activePreSaleId ? 'Atualizar' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Checkout Dialog */}
       <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
         <DialogContent className="sm:max-w-[450px]">
@@ -551,7 +755,12 @@ export default function Sales() {
                       type="button"
                       variant="outline"
                       className="h-9 shrink-0 border-emerald-200 hover:bg-emerald-100 text-emerald-800"
-                      onClick={copyPixCode}
+                      onClick={() => {
+                        navigator.clipboard.writeText(
+                          '00020126580014br.gov.bcb.pix0136-mock-code-1234',
+                        )
+                        toast({ title: 'Código PIX copiado!' })
+                      }}
                     >
                       <Copy className="h-4 w-4 mr-1" /> Copiar
                     </Button>

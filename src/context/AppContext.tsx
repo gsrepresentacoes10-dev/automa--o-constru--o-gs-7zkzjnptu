@@ -59,6 +59,16 @@ export interface Sale {
   dueDate?: string
 }
 
+export interface PreSale {
+  id: string
+  date: string
+  customerName: string
+  items: SaleItem[]
+  total: number
+  discountType: 'percent' | 'fixed'
+  discountValue: string
+}
+
 export interface Supplier {
   id: string
   name: string
@@ -105,6 +115,10 @@ interface AppContextType {
   setSales: (sales: Sale[]) => void
   addSale: (sale: Omit<Sale, 'id' | 'date' | 'status'>) => Sale
   markSaleAsPaid: (id: string) => void
+  preSales: PreSale[]
+  addPreSale: (preSale: Omit<PreSale, 'id' | 'date'>) => void
+  updatePreSale: (id: string, preSale: Omit<PreSale, 'id' | 'date'>) => void
+  deletePreSale: (id: string) => void
   customers: Customer[]
   setCustomers: (customers: Customer[]) => void
   cashbackPercentage: number
@@ -265,6 +279,18 @@ const initialSales: Sale[] = [
   },
 ]
 
+const initialPreSales: PreSale[] = [
+  {
+    id: 'PV-1001',
+    date: new Date().toISOString(),
+    customerName: 'Mestre de Obras Zé',
+    items: [{ product: initialProducts[2], quantity: 15, total: 427.5 }],
+    total: 427.5,
+    discountType: 'percent',
+    discountValue: '',
+  },
+]
+
 const initialSuppliers: Supplier[] = [
   {
     id: '1',
@@ -281,6 +307,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role>('Admin')
   const [products, setProducts] = useState<Product[]>(initialProducts)
   const [sales, setSales] = useState<Sale[]>(initialSales)
+  const [preSales, setPreSales] = useState<PreSale[]>(initialPreSales)
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
   const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers)
   const [purchases, setPurchases] = useState<Purchase[]>([])
@@ -295,6 +322,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteUser = (id: string) => {
     setUsers(users.filter((u) => u.id !== id))
     toast({ title: 'Usuário Removido', description: 'O acesso foi revogado.' })
+  }
+
+  const addPreSale = (preSale: Omit<PreSale, 'id' | 'date'>) => {
+    const newPreSale: PreSale = {
+      ...preSale,
+      id: `PV-${1000 + preSales.length + 1}`,
+      date: new Date().toISOString(),
+    }
+    setPreSales([newPreSale, ...preSales])
+  }
+
+  const updatePreSale = (id: string, preSale: Omit<PreSale, 'id' | 'date'>) => {
+    setPreSales((prev) => prev.map((p) => (p.id === id ? { ...p, ...preSale } : p)))
+  }
+
+  const deletePreSale = (id: string) => {
+    setPreSales((prev) => prev.filter((p) => p.id !== id))
   }
 
   const addPurchase = (newPurchase: Omit<Purchase, 'id' | 'date'>) => {
@@ -419,6 +463,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSales,
         addSale,
         markSaleAsPaid,
+        preSales,
+        addPreSale,
+        updatePreSale,
+        deletePreSale,
         customers,
         setCustomers,
         cashbackPercentage,
