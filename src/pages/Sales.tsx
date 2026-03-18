@@ -7,7 +7,7 @@ import {
   PaymentMethod,
   PreSale,
 } from '@/context/AppContext'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, cn } from '@/lib/utils'
 import {
   Search,
   ShoppingCart,
@@ -197,7 +197,7 @@ export default function Sales() {
     }
 
     const payload = {
-      customerName: preSaleCustomerName,
+      customerName: preSaleCustomerName.trim(),
       items: cart.filter((i) => i.quantity > 0),
       total: cartTotalWithDiscount,
       discountType,
@@ -667,14 +667,26 @@ export default function Sales() {
           </DialogHeader>
           <div className="py-4 space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="customerName">Nome do Cliente / Identificação do Pedido</Label>
+              <Label htmlFor="customerName">
+                Nome do Cliente / Identificação do Pedido{' '}
+                <span className="text-destructive">*</span>
+              </Label>
               <Input
                 id="customerName"
                 placeholder="Ex: João da Obra / Pedido WhatsApp"
                 value={preSaleCustomerName}
                 onChange={(e) => setPreSaleCustomerName(e.target.value)}
                 autoFocus
+                className={cn(
+                  !preSaleCustomerName.trim() &&
+                    'border-destructive focus-visible:ring-destructive',
+                )}
               />
+              {!preSaleCustomerName.trim() && (
+                <p className="text-[10px] text-destructive">
+                  O nome do cliente é obrigatório para salvar a pré-venda.
+                </p>
+              )}
             </div>
             <div className="bg-muted/50 p-3 rounded-md border text-sm flex justify-between items-center">
               <span className="text-muted-foreground">Total do pedido:</span>
@@ -687,7 +699,7 @@ export default function Sales() {
             <Button variant="outline" onClick={() => setIsSavePreSaleOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSavePreSale}>
+            <Button onClick={handleSavePreSale} disabled={!preSaleCustomerName.trim()}>
               <Save className="mr-2 h-4 w-4" /> {activePreSaleId ? 'Atualizar' : 'Salvar'}
             </Button>
           </DialogFooter>

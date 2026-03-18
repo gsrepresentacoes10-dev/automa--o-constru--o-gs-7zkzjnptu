@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAppContext, SaleItem, PaymentMethod, Quote } from '@/context/AppContext'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, cn } from '@/lib/utils'
 import {
   FileText,
   Plus,
@@ -47,6 +47,7 @@ export default function Quotes() {
 
   const [cart, setCart] = useState<SaleItem[]>([])
   const [customerId, setCustomerId] = useState('none')
+  const [customerName, setCustomerName] = useState('')
   const [discount, setDiscount] = useState('')
 
   const [receiptQuote, setReceiptQuote] = useState<Quote | null>(null)
@@ -75,13 +76,10 @@ export default function Quotes() {
   const finalTotal = Math.max(0, cartTotal - discountVal)
 
   const handleSaveQuote = () => {
-    if (cart.length === 0) return
+    if (cart.length === 0 || !customerName.trim()) return
     addQuote({
       customerId: customerId !== 'none' ? customerId : undefined,
-      customer:
-        customerId !== 'none'
-          ? customers.find((c) => c.id === customerId)?.name
-          : 'Consumidor Final',
+      customer: customerName.trim(),
       items: cart,
       total: finalTotal,
       discount: discountVal > 0 ? discountVal : undefined,
@@ -89,6 +87,7 @@ export default function Quotes() {
     setIsCreating(false)
     setCart([])
     setCustomerId('none')
+    setCustomerName('')
     setDiscount('')
 
     // Auto-open receipt for the newly created quote
@@ -97,10 +96,7 @@ export default function Quotes() {
       date: new Date().toISOString(),
       status: 'Pendente' as const,
       customerId: customerId !== 'none' ? customerId : undefined,
-      customer:
-        customerId !== 'none'
-          ? customers.find((c) => c.id === customerId)?.name
-          : 'Consumidor Final',
+      customer: customerName.trim(),
       items: cart,
       total: finalTotal,
       discount: discountVal > 0 ? discountVal : undefined,
@@ -155,15 +151,25 @@ export default function Quotes() {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 h-[calc(100vh-10rem)]">
           <div className="lg:col-span-2 flex flex-col gap-4 bg-card border rounded-lg p-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Cliente</Label>
-                <Select value={customerId} onValueChange={setCustomerId}>
+                <Label>Cliente Cadastrado</Label>
+                <Select
+                  value={customerId}
+                  onValueChange={(val) => {
+                    setCustomerId(val)
+                    if (val !== 'none') {
+                      setCustomerName(customers.find((c) => c.id === val)?.name || '')
+                    } else {
+                      setCustomerName('')
+                    }
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Consumidor Final</SelectItem>
+                    <SelectItem value="none">Nenhum (Avulso)</SelectItem>
                     {customers.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}
@@ -171,6 +177,22 @@ export default function Quotes() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>
+                  Nome do Cliente <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  placeholder="Ex: Maria Silva"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className={cn(
+                    !customerName.trim() && 'border-destructive focus-visible:ring-destructive',
+                  )}
+                />
+                {!customerName.trim() && (
+                  <p className="text-[10px] text-destructive">Campo obrigatório</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Adicionar Produto</Label>
@@ -188,7 +210,7 @@ export default function Quotes() {
                 </Select>
               </div>
             </div>
-            <ScrollArea className="flex-1 border rounded-md p-2">
+            <ScrollArea className="flex-1 border rounded-md p-2 mt-2">
               {cart.map((c) => (
                 <div
                   key={c.product.id}
@@ -220,6 +242,11 @@ export default function Quotes() {
                   </div>
                 </div>
               ))}
+              {cart.length === 0 && (
+                <div className="text-center text-muted-foreground py-8 text-sm">
+                  Adicione produtos para iniciar o orçamento.
+                </div>
+              )}
             </ScrollArea>
           </div>
           <div className="bg-card border rounded-lg p-4 flex flex-col shadow-sm">
@@ -250,7 +277,7 @@ export default function Quotes() {
               </div>
               <Button
                 className="w-full h-12 text-lg"
-                disabled={cart.length === 0}
+                disabled={cart.length === 0 || !customerName.trim()}
                 onClick={handleSaveQuote}
               >
                 Salvar Orçamento
@@ -294,7 +321,7 @@ export default function Quotes() {
                     {new Date(q.date).toLocaleDateString('pt-BR')}
                   </div>
                 </TableCell>
-                <TableCell>{q.customer}</TableCell>
+                <TableCell className="font-medium">{q.customer}</TableCell>
                 <TableCell className="text-right font-medium">{formatCurrency(q.total)}</TableCell>
                 <TableCell className="text-center">
                   <Badge
