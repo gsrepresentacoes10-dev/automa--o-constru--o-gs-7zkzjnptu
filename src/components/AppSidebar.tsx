@@ -27,22 +27,27 @@ import {
 import { useAppContext } from '@/context/AppContext'
 
 const allItems = [
+  { title: 'Dashboard (BI)', url: '/', icon: LayoutDashboard, roles: ['Admin', 'Manager'] },
   {
-    title: 'Dashboard (BI)',
-    url: '/',
-    icon: LayoutDashboard,
-    roles: ['Admin', 'Vendedor', 'Estoquista'],
+    title: 'PDV / Vendas',
+    url: '/vendas',
+    icon: ShoppingCart,
+    roles: ['Admin', 'Manager', 'Seller'],
   },
-  { title: 'PDV / Vendas', url: '/vendas', icon: ShoppingCart, roles: ['Admin', 'Vendedor'] },
-  { title: 'Orçamentos', url: '/orcamentos', icon: FileText, roles: ['Admin', 'Vendedor'] },
-  { title: 'Estoque', url: '/estoque', icon: Package, roles: ['Admin', 'Estoquista'] },
-  { title: 'Compras', url: '/compras', icon: ShoppingBag, roles: ['Admin', 'Estoquista'] },
-  { title: 'Fornecedores', url: '/fornecedores', icon: Truck, roles: ['Admin', 'Estoquista'] },
+  {
+    title: 'Orçamentos',
+    url: '/orcamentos',
+    icon: FileText,
+    roles: ['Admin', 'Manager', 'Seller'],
+  },
+  { title: 'Estoque', url: '/estoque', icon: Package, roles: ['Admin', 'Manager'] },
+  { title: 'Compras', url: '/compras', icon: ShoppingBag, roles: ['Admin', 'Manager'] },
+  { title: 'Fornecedores', url: '/fornecedores', icon: Truck, roles: ['Admin', 'Manager'] },
   { title: 'Contas a Receber', url: '/contas-receber', icon: Landmark, roles: ['Admin'] },
   { title: 'Notas Fiscais', url: '/notas-fiscais', icon: ReceiptText, roles: ['Admin'] },
-  { title: 'Clientes', url: '/clientes', icon: Users, roles: ['Admin', 'Vendedor'] },
-  { title: 'Colaboradores', url: '/colaboradores', icon: UserCog, roles: ['Admin'] },
-  { title: 'Relatórios', url: '/relatorios', icon: BarChart3, roles: ['Admin'] },
+  { title: 'Clientes', url: '/clientes', icon: Users, roles: ['Admin', 'Manager'] },
+  { title: 'Usuários do Sistema', url: '/colaboradores', icon: UserCog, roles: ['Admin'] },
+  { title: 'Relatórios', url: '/relatorios', icon: BarChart3, roles: ['Admin', 'Manager'] },
 ]
 
 export function AppSidebar() {

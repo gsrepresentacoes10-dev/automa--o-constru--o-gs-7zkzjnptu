@@ -24,6 +24,38 @@ export default function Layout() {
 
   return (
     <SidebarProvider>
+      <style>{`
+        @media print {
+          body.printing-thermal * {
+            visibility: hidden;
+            color: #000 !important;
+          }
+          body.printing-thermal .thermal-receipt,
+          body.printing-thermal .thermal-receipt * {
+            visibility: visible;
+          }
+          body.printing-thermal .thermal-dialog-content {
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
+            transform: none !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            background: white !important;
+          }
+          body.printing-thermal .thermal-receipt {
+            width: 80mm;
+            margin: 0;
+            padding: 0;
+          }
+          body.printing-thermal .print\\:hidden {
+            display: none !important;
+          }
+        }
+      `}</style>
       <div className="print:hidden h-full flex flex-col">
         <AppSidebar />
       </div>
@@ -75,7 +107,7 @@ export default function Layout() {
                 <DropdownMenuLabel className="text-xs text-muted-foreground">
                   Mudar Visão (Simulação)
                 </DropdownMenuLabel>
-                {(['Admin', 'Vendedor', 'Estoquista'] as Role[]).map((r) => (
+                {(['Admin', 'Manager', 'Seller'] as Role[]).map((r) => (
                   <DropdownMenuItem key={r} onClick={() => setRole(r)} className="cursor-pointer">
                     Visão {r}
                   </DropdownMenuItem>

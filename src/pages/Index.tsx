@@ -1,3 +1,4 @@
+import { Navigate } from 'react-router-dom'
 import { useAppContext } from '@/context/AppContext'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/utils'
@@ -17,7 +18,11 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 export default function Index() {
-  const { products, sales } = useAppContext()
+  const { products, sales, role } = useAppContext()
+
+  if (role === 'Seller') {
+    return <Navigate to="/vendas" replace />
+  }
 
   const lowStockProducts = products.filter((p) => p.stock <= p.minStock)
 

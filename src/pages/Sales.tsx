@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAppContext, Product, SaleItem, Sale, PaymentMethod } from '@/context/AppContext'
-import { formatCurrency, exportSalesToExcel } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 import {
   Search,
   ShoppingCart,
@@ -8,12 +8,12 @@ import {
   CheckCircle2,
   ScanLine,
   Printer,
-  FileSpreadsheet,
-  FileText,
   Minus,
   Plus,
   QrCode,
   Copy,
+  MessageCircle,
+  Eye,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -36,8 +36,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { PrintableSales } from '@/components/PrintableSales'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
 
 export default function Sales() {
   const { products, sales, customers, addSale, cashbackPercentage } = useAppContext()
@@ -53,7 +61,9 @@ export default function Sales() {
   const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent')
   const [discountValue, setDiscountValue] = useState<string>('')
 
-  const [completedSale, setCompletedSale] = useState<Sale | null>(null)
+  const [receiptSale, setReceiptSale] = useState<Sale | null>(null)
+  const [whatsappSale, setWhatsappSale] = useState<Sale | null>(null)
+  const [whatsappPhone, setWhatsappPhone] = useState('')
 
   const filteredProducts = products.filter(
     (p) =>
@@ -162,15 +172,7 @@ export default function Sales() {
     }
 
     const validItems = cart.filter((i) => i.quantity > 0)
-
-    if (validItems.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: 'Carrinho vazio',
-        description: 'Adicione produtos com quantidade maior que zero.',
-      })
-      return
-    }
+    if (validItems.length === 0) return
 
     const sale = addSale({
       customerId: selectedCustomerId !== 'none' ? selectedCustomerId : undefined,
@@ -183,7 +185,7 @@ export default function Sales() {
         cashbackEarned > 0 && selectedCustomerId !== 'none' ? cashbackEarned : undefined,
       paymentMethod,
     })
-    setCompletedSale(sale)
+    setReceiptSale(sale)
     setCart([])
     setSelectedCustomerId('none')
     setUseCashback(false)
@@ -191,24 +193,49 @@ export default function Sales() {
     setIsCheckoutOpen(false)
   }
 
+  const printReceipt = () => {
+    document.body.classList.add('printing-thermal')
+    window.print()
+    setTimeout(() => document.body.classList.remove('printing-thermal'), 500)
+  }
+
+  const openWhatsappDialog = (sale: Sale) => {
+    const phone = customers.find((c) => c.id === sale.customerId)?.phone || ''
+    if (phone) {
+      sendWhatsappMessage(sale, phone)
+    } else {
+      setWhatsappSale(sale)
+      setWhatsappPhone('')
+    }
+  }
+
+  const sendWhatsappMessage = (sale: Sale, phone: string) => {
+    const summary = sale.items
+      .slice(0, 3)
+      .map((i) => `${i.quantity}x ${i.product.name}`)
+      .join(', ')
+    const extendedSummary =
+      sale.items.length > 3 ? `${summary} e mais ${sale.items.length - 3} itens` : summary
+    const text = `Olá${sale.customer !== 'Consumidor Final' ? ` ${sale.customer}` : ''}, aqui é da ConstruMaster. Segue o resumo da sua compra: ${extendedSummary}. Total: ${formatCurrency(sale.total)}. Obrigado pela preferência!`
+    const cleanPhone = phone.replace(/\D/g, '')
+    window.open(`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank')
+    setWhatsappSale(null)
+  }
+
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 print:hidden">
+    <Tabs defaultValue="pdv" className="h-full flex flex-col space-y-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">PDV (Ponto de Venda)</h1>
-          <p className="text-muted-foreground">Busque produtos ou escaneie o código de barras.</p>
+          <h1 className="text-2xl font-bold tracking-tight">Vendas</h1>
+          <p className="text-muted-foreground">Ponto de venda e histórico de transações.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => exportSalesToExcel(sales)}>
-            <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
-          </Button>
-          <Button variant="outline" onClick={() => window.print()}>
-            <FileText className="mr-2 h-4 w-4" /> PDF
-          </Button>
-        </div>
+        <TabsList>
+          <TabsTrigger value="pdv">Caixa / PDV</TabsTrigger>
+          <TabsTrigger value="historico">Histórico</TabsTrigger>
+        </TabsList>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-12rem)] print:hidden">
+      <TabsContent value="pdv" className="flex flex-col lg:flex-row gap-6 flex-1 mt-0 print:hidden">
         {/* Left Panel */}
         <div className="flex-1 flex flex-col gap-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -234,7 +261,7 @@ export default function Sales() {
             </div>
           </div>
 
-          <ScrollArea className="flex-1 bg-card border rounded-lg shadow-sm">
+          <ScrollArea className="flex-1 bg-card border rounded-lg shadow-sm h-[calc(100vh-16rem)]">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
               {filteredProducts.map((product) => (
                 <div
@@ -397,9 +424,71 @@ export default function Sales() {
             </Button>
           </CardFooter>
         </Card>
-      </div>
+      </TabsContent>
 
-      <PrintableSales sales={sales} />
+      <TabsContent value="historico" className="flex-1 mt-0">
+        <Card className="h-full flex flex-col">
+          <CardContent className="p-0 overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-6">Data / Nº</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Pagamento</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                  <TableHead className="text-right pr-6">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sales.map((sale) => (
+                  <TableRow key={sale.id}>
+                    <TableCell className="pl-6">
+                      <div className="font-medium">
+                        {new Date(sale.date).toLocaleDateString('pt-BR')}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{sale.id}</div>
+                    </TableCell>
+                    <TableCell>{sale.customer || 'Consumidor Final'}</TableCell>
+                    <TableCell>{sale.paymentMethod || '-'}</TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(sale.total)}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge
+                        variant={sale.status === 'Pago' ? 'default' : 'secondary'}
+                        className={sale.status === 'Pago' ? 'bg-emerald-500' : ''}
+                      >
+                        {sale.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right pr-6 space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                        onClick={() => openWhatsappDialog(sale)}
+                      >
+                        <MessageCircle className="h-4 w-4 mr-1" /> WhatsApp
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setReceiptSale(sale)}>
+                        <Eye className="h-4 w-4 mr-1" /> Recibo
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {sales.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      Nenhuma venda registrada.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </TabsContent>
 
       {/* Checkout Dialog */}
       <Dialog open={isCheckoutOpen} onOpenChange={setIsCheckoutOpen}>
@@ -543,21 +632,21 @@ export default function Sales() {
       </Dialog>
 
       {/* Receipt Dialog (Thermal Print) */}
-      <Dialog open={!!completedSale} onOpenChange={(open) => !open && setCompletedSale(null)}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader className="print:hidden">
-            <DialogTitle>Venda Concluída!</DialogTitle>
+      <Dialog open={!!receiptSale} onOpenChange={(open) => !open && setReceiptSale(null)}>
+        <DialogContent className="sm:max-w-[400px] thermal-dialog-content">
+          <DialogHeader className="print:hidden hide-in-thermal">
+            <DialogTitle>Recibo de Venda</DialogTitle>
           </DialogHeader>
           <div className="thermal-receipt bg-white text-black p-4 text-xs font-mono border rounded-md">
             <div className="text-center font-bold text-base mb-1">CONSTRUMASTER</div>
             <div className="text-center mb-3 text-[10px]">CNPJ: 12.345.678/0001-90</div>
             <div className="border-b border-dashed border-gray-400 mb-2 pb-2 text-[10px]">
               <div>
-                Data: {completedSale ? new Date(completedSale.date).toLocaleString('pt-BR') : ''}
+                Data: {receiptSale ? new Date(receiptSale.date).toLocaleString('pt-BR') : ''}
               </div>
-              <div>Cliente: {completedSale?.customer}</div>
-              <div>ID: {completedSale?.id}</div>
-              <div>Pagamento: {completedSale?.paymentMethod}</div>
+              <div>Cliente: {receiptSale?.customer}</div>
+              <div>ID: {receiptSale?.id}</div>
+              <div>Pagamento: {receiptSale?.paymentMethod}</div>
             </div>
             <table className="w-full mb-2 text-[10px]">
               <thead>
@@ -568,7 +657,7 @@ export default function Sales() {
                 </tr>
               </thead>
               <tbody>
-                {completedSale?.items.map((item, i) => (
+                {receiptSale?.items.map((item, i) => (
                   <tr key={i}>
                     <td className="truncate max-w-[120px] py-1">{item.product.name}</td>
                     <td className="text-right py-1">{item.quantity}</td>
@@ -578,63 +667,94 @@ export default function Sales() {
               </tbody>
             </table>
             <div className="border-t border-dashed border-gray-400 pt-2 text-right">
-              {completedSale?.discount ? (
+              {receiptSale?.discount ? (
                 <div className="text-[10px] mb-1">
-                  Desconto: -{formatCurrency(completedSale.discount)}
+                  Desconto: -{formatCurrency(receiptSale.discount)}
                 </div>
               ) : null}
-              {completedSale?.cashbackUsed && completedSale.paymentMethod !== 'Venda a Prazo' ? (
+              {receiptSale?.cashbackUsed && receiptSale.paymentMethod !== 'Venda a Prazo' ? (
                 <div className="text-[10px] mb-1">
-                  Desconto Fid.: -{formatCurrency(completedSale.cashbackUsed)}
+                  Desconto Fid.: -{formatCurrency(receiptSale.cashbackUsed)}
                 </div>
               ) : null}
               <div className="font-bold text-sm mt-1">
-                TOTAL R$: {formatCurrency(completedSale?.total || 0)}
+                TOTAL R$: {formatCurrency(receiptSale?.total || 0)}
               </div>
-              {completedSale?.cashbackEarned && completedSale.paymentMethod !== 'Venda a Prazo' ? (
+              {receiptSale?.cashbackEarned && receiptSale.paymentMethod !== 'Venda a Prazo' ? (
                 <div className="text-[10px] mt-2 border-t border-dashed border-gray-400 pt-2">
-                  Cashback Ganho: {formatCurrency(completedSale.cashbackEarned)}
+                  Cashback Ganho: {formatCurrency(receiptSale.cashbackEarned)}
                 </div>
               ) : null}
             </div>
 
-            {completedSale?.paymentMethod === 'Venda a Prazo' && (
+            {receiptSale?.paymentMethod === 'Venda a Prazo' && (
               <div className="mt-6 pt-4 border-t border-dashed border-gray-400">
                 <div className="text-center font-bold mb-2 text-sm">CONTRATO DE VENDA A PRAZO</div>
                 <p className="text-justify text-[10px] mb-8 leading-tight">
                   Reconheço a exatidão desta nota de venda a prazo na importância de{' '}
-                  {formatCurrency(completedSale.total)} que pagarei à CONSTRUMASTER, ou à sua ordem.
+                  {formatCurrency(receiptSale.total)} que pagarei à CONSTRUMASTER, ou à sua ordem.
                 </p>
                 <div className="mt-10 border-t border-black w-4/5 mx-auto text-center pt-1">
                   Assinatura do Cliente
                 </div>
-                <div className="text-center text-[10px] mt-1 font-bold">
-                  {completedSale.customer}
-                </div>
-                {completedSale.customerId && (
+                <div className="text-center text-[10px] mt-1 font-bold">{receiptSale.customer}</div>
+                {receiptSale.customerId && (
                   <div className="text-center text-[10px] mt-1">
-                    Doc: {customers.find((c) => c.id === completedSale.customerId)?.document || ''}
+                    Doc: {customers.find((c) => c.id === receiptSale.customerId)?.document || ''}
                   </div>
                 )}
               </div>
             )}
           </div>
-          <DialogFooter className="print:hidden">
-            <Button variant="outline" onClick={() => setCompletedSale(null)}>
-              Nova Venda
+          <DialogFooter className="print:hidden hide-in-thermal">
+            <Button variant="outline" onClick={() => setReceiptSale(null)}>
+              Fechar
             </Button>
             <Button
-              onClick={() => {
-                document.body.classList.add('printing-receipt')
-                window.print()
-                setTimeout(() => document.body.classList.remove('printing-receipt'), 500)
-              }}
+              variant="outline"
+              className="text-emerald-600 hover:text-emerald-700"
+              onClick={() => receiptSale && openWhatsappDialog(receiptSale)}
             >
-              <Printer className="mr-2 h-4 w-4" /> Imprimir Recibo
+              <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
+            </Button>
+            <Button onClick={printReceipt}>
+              <Printer className="mr-2 h-4 w-4" /> Imprimir (Térmica)
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+
+      {/* WhatsApp Prompt Dialog */}
+      <Dialog open={!!whatsappSale} onOpenChange={(o) => !o && setWhatsappSale(null)}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Enviar Recibo via WhatsApp</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-2">
+            <Label>Telefone do Cliente</Label>
+            <Input
+              placeholder="(11) 99999-9999"
+              value={whatsappPhone}
+              onChange={(e) => setWhatsappPhone(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Este cliente não possui telefone cadastrado. Informe um número para enviar o recibo.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWhatsappSale(null)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => whatsappSale && sendWhatsappMessage(whatsappSale, whatsappPhone)}
+              disabled={!whatsappPhone}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              <MessageCircle className="mr-2 h-4 w-4" /> Enviar Mensagem
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Tabs>
   )
 }

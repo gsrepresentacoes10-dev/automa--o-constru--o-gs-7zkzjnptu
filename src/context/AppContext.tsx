@@ -1,7 +1,14 @@
 import { createContext, useContext, useState, ReactNode } from 'react'
 import { toast } from '@/hooks/use-toast'
 
-export type Role = 'Admin' | 'Vendedor' | 'Estoquista'
+export type Role = 'Admin' | 'Manager' | 'Seller'
+
+export interface User {
+  id: string
+  name: string
+  email: string
+  role: Role
+}
 
 export type PaymentMethod =
   | 'Dinheiro'
@@ -88,6 +95,10 @@ export interface Quote {
 interface AppContextType {
   role: Role
   setRole: (role: Role) => void
+  users: User[]
+  setUsers: (users: User[]) => void
+  addUser: (user: Omit<User, 'id'>) => void
+  deleteUser: (id: string) => void
   products: Product[]
   setProducts: (products: Product[]) => void
   sales: Sale[]
@@ -105,6 +116,12 @@ interface AppContextType {
   addQuote: (quote: Omit<Quote, 'id' | 'date' | 'status'>) => void
   convertQuoteToSale: (quoteId: string, paymentMethod: PaymentMethod) => void
 }
+
+const initialUsers: User[] = [
+  { id: '1', name: 'Carlos Admin', email: 'carlos@construmaster.com', role: 'Admin' },
+  { id: '2', name: 'Ana Gerente', email: 'ana@construmaster.com', role: 'Manager' },
+  { id: '3', name: 'Pedro Vendedor', email: 'pedro@construmaster.com', role: 'Seller' },
+]
 
 const initialProducts: Product[] = [
   {
@@ -140,6 +157,50 @@ const initialProducts: Product[] = [
     stock: 45,
     minStock: 30,
   },
+  {
+    id: '4',
+    sku: 'POR-001',
+    name: 'Porcelanato Polido 60x60',
+    category: 'Pisos',
+    unit: 'm²',
+    price: 59.9,
+    costPrice: 40.0,
+    stock: 150,
+    minStock: 50,
+  },
+  {
+    id: '5',
+    sku: 'TUB-100',
+    name: 'Tubo PVC 100mm',
+    category: 'Hidráulica',
+    unit: 'br',
+    price: 45.0,
+    costPrice: 30.0,
+    stock: 80,
+    minStock: 20,
+  },
+  {
+    id: '6',
+    sku: 'CAB-004',
+    name: 'Cabo Flexível 4mm',
+    category: 'Elétrica',
+    unit: 'rl',
+    price: 180.0,
+    costPrice: 120.0,
+    stock: 15,
+    minStock: 10,
+  },
+  {
+    id: '7',
+    sku: 'TIN-018',
+    name: 'Tinta Acrílica Fosca 18L',
+    category: 'Pintura',
+    unit: 'lt',
+    price: 220.0,
+    costPrice: 160.0,
+    stock: 8,
+    minStock: 5,
+  },
 ]
 
 const initialCustomers: Customer[] = [
@@ -167,10 +228,12 @@ const initialSales: Sale[] = [
     date: new Date().toISOString(),
     customerId: '2',
     customer: 'João Silva',
-    items: [],
-    total: 1450.5,
+    items: [
+      { product: initialProducts[0], quantity: 10, total: 359 },
+      { product: initialProducts[1], quantity: 500, total: 575 },
+    ],
+    total: 934,
     status: 'Pago',
-    cashbackEarned: 29.01,
     paymentMethod: 'PIX',
   },
   {
@@ -178,11 +241,27 @@ const initialSales: Sale[] = [
     date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     customerId: '1',
     customer: 'Construtora Alpha Ltda',
-    items: [],
-    total: 5800.0,
+    items: [
+      { product: initialProducts[3], quantity: 100, total: 5990 },
+      { product: initialProducts[4], quantity: 20, total: 900 },
+    ],
+    total: 6890.0,
     status: 'Pendente',
     paymentMethod: 'Venda a Prazo',
     dueDate: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'V-1003',
+    date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    customerId: '2',
+    customer: 'João Silva',
+    items: [
+      { product: initialProducts[5], quantity: 2, total: 360 },
+      { product: initialProducts[6], quantity: 1, total: 220 },
+    ],
+    total: 580,
+    status: 'Pago',
+    paymentMethod: 'Cartão de Crédito',
   },
 ]
 
@@ -198,6 +277,7 @@ const initialSuppliers: Supplier[] = [
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const [users, setUsers] = useState<User[]>(initialUsers)
   const [role, setRole] = useState<Role>('Admin')
   const [products, setProducts] = useState<Product[]>(initialProducts)
   const [sales, setSales] = useState<Sale[]>(initialSales)
@@ -206,6 +286,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [purchases, setPurchases] = useState<Purchase[]>([])
   const [quotes, setQuotes] = useState<Quote[]>([])
   const cashbackPercentage = 2
+
+  const addUser = (newUser: Omit<User, 'id'>) => {
+    setUsers([...users, { ...newUser, id: Date.now().toString() }])
+    toast({ title: 'Usuário Adicionado', description: 'O acesso foi concedido com sucesso.' })
+  }
+
+  const deleteUser = (id: string) => {
+    setUsers(users.filter((u) => u.id !== id))
+    toast({ title: 'Usuário Removido', description: 'O acesso foi revogado.' })
+  }
 
   const addPurchase = (newPurchase: Omit<Purchase, 'id' | 'date'>) => {
     const purchase: Purchase = {
@@ -319,6 +409,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       value={{
         role,
         setRole,
+        users,
+        setUsers,
+        addUser,
+        deleteUser,
         products,
         setProducts,
         sales,
