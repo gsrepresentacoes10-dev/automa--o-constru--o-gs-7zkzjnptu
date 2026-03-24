@@ -115,6 +115,16 @@ export interface Purchase {
   total: number
 }
 
+export interface PurchaseOrder {
+  id: string
+  productId: string
+  quantity: number
+  expectedDeliveryDate: string
+  documentName?: string
+  status: 'Aguardando Chegada' | 'Entrada Realizada'
+  createdAt: string
+}
+
 export interface QuoteEditLog {
   timestamp: string
   userName: string
@@ -179,6 +189,8 @@ interface AppContextType {
   setSuppliers: (suppliers: Supplier[]) => void
   purchases: Purchase[]
   addPurchase: (purchase: Omit<Purchase, 'id' | 'date'>) => void
+  purchaseOrders: PurchaseOrder[]
+  addPurchaseOrder: (order: Omit<PurchaseOrder, 'id' | 'status' | 'createdAt'>) => void
   quotes: Quote[]
   addQuote: (quote: Omit<Quote, 'id' | 'date' | 'status'>) => void
   updateQuote: (id: string, quote: Partial<Quote>, logEdit?: boolean) => void
@@ -387,6 +399,18 @@ const initialSuppliers: Supplier[] = [
   },
 ]
 
+const initialPurchaseOrders: PurchaseOrder[] = [
+  {
+    id: 'PO-1001',
+    productId: '1',
+    quantity: 100,
+    expectedDeliveryDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+    documentName: 'pedido_cimento_01.pdf',
+    status: 'Aguardando Chegada',
+    createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+]
+
 const initialQuotes: Quote[] = [
   {
     id: 'ORC-1001',
@@ -434,6 +458,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
   const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers)
   const [purchases, setPurchases] = useState<Purchase[]>([])
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(initialPurchaseOrders)
   const [quotes, setQuotes] = useState<Quote[]>(initialQuotes)
   const cashbackPercentage = 2
 
@@ -583,6 +608,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPreSales((prev) => prev.filter((p) => p.id !== id))
   }
 
+  const addPurchaseOrder = (order: Omit<PurchaseOrder, 'id' | 'status' | 'createdAt'>) => {
+    const newOrder: PurchaseOrder = {
+      ...order,
+      id: `PO-${1000 + purchaseOrders.length + 1}`,
+      status: 'Aguardando Chegada',
+      createdAt: new Date().toISOString(),
+    }
+    setPurchaseOrders([newOrder, ...purchaseOrders])
+    toast({
+      title: 'Pedido de Compra Registrado',
+      description: 'O status do produto foi atualizado para Aguardando Chegada.',
+    })
+  }
+
   const addPurchase = (newPurchase: Omit<Purchase, 'id' | 'date'>) => {
     const purchase: Purchase = {
       ...newPurchase,
@@ -617,9 +656,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setProducts(updatedProducts)
 
+    setPurchaseOrders((prev) =>
+      prev.map((po) => {
+        const receivedItem = newPurchase.items.find((item) => item.product.id === po.productId)
+        if (receivedItem && po.status === 'Aguardando Chegada') {
+          return { ...po, status: 'Entrada Realizada' }
+        }
+        return po
+      }),
+    )
+
     toast({
       title: 'Entrada Registrada',
-      description: 'Estoque atualizado com sucesso.',
+      description: 'Estoque atualizado e pedidos relacionados marcados como recebidos.',
     })
   }
 
@@ -859,6 +908,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSuppliers,
         purchases,
         addPurchase,
+        purchaseOrders,
+        addPurchaseOrder,
         quotes,
         addQuote,
         updateQuote,
