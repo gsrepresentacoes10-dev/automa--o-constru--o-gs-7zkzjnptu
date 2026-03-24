@@ -10,6 +10,8 @@ import {
   Printer,
   MessageCircle,
   Eye,
+  AlertCircle,
+  Clock,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,9 +40,11 @@ import {
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { CustomerCombobox } from '@/components/CustomerCombobox'
 
 export default function Quotes() {
-  const { quotes, customers, products, addQuote, convertQuoteToSale } = useAppContext()
+  const { quotes, customers, products, addQuote, convertQuoteToSale, convertQuoteToPreSale } =
+    useAppContext()
   const [isCreating, setIsCreating] = useState(false)
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Dinheiro')
@@ -49,6 +53,7 @@ export default function Quotes() {
   const [customerId, setCustomerId] = useState('none')
   const [customerName, setCustomerName] = useState('')
   const [discount, setDiscount] = useState('')
+  const [validUntil, setValidUntil] = useState('')
 
   const [receiptQuote, setReceiptQuote] = useState<Quote | null>(null)
   const [whatsappQuote, setWhatsappQuote] = useState<Quote | null>(null)
@@ -76,25 +81,27 @@ export default function Quotes() {
   const finalTotal = Math.max(0, cartTotal - discountVal)
 
   const handleSaveQuote = () => {
-    if (cart.length === 0 || !customerName.trim()) return
+    if (cart.length === 0 || !customerName.trim() || !validUntil) return
     addQuote({
       customerId: customerId !== 'none' ? customerId : undefined,
       customer: customerName.trim(),
       items: cart,
       total: finalTotal,
       discount: discountVal > 0 ? discountVal : undefined,
+      validUntil: new Date(validUntil).toISOString(),
     })
     setIsCreating(false)
     setCart([])
     setCustomerId('none')
     setCustomerName('')
     setDiscount('')
+    setValidUntil('')
 
-    // Auto-open receipt for the newly created quote
     const newQuoteObj = {
       id: `ORC-${1000 + quotes.length + 1}`,
       date: new Date().toISOString(),
       status: 'Pendente' as const,
+      validUntil: new Date(validUntil).toISOString(),
       customerId: customerId !== 'none' ? customerId : undefined,
       customer: customerName.trim(),
       items: cart,
@@ -151,12 +158,13 @@ export default function Quotes() {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 h-[calc(100vh-10rem)]">
           <div className="lg:col-span-2 flex flex-col gap-4 bg-card border rounded-lg p-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Cliente Cadastrado</Label>
-                <Select
+                <Label>Cliente</Label>
+                <CustomerCombobox
+                  customers={customers}
                   value={customerId}
-                  onValueChange={(val) => {
+                  onChange={(val) => {
                     setCustomerId(val)
                     if (val !== 'none') {
                       setCustomerName(customers.find((c) => c.id === val)?.name || '')
@@ -164,19 +172,8 @@ export default function Quotes() {
                       setCustomerName('')
                     }
                   }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum (Avulso)</SelectItem>
-                    {customers.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  allowWalkIn
+                />
               </div>
               <div className="space-y-2">
                 <Label>
@@ -193,6 +190,19 @@ export default function Quotes() {
                 {!customerName.trim() && (
                   <p className="text-[10px] text-destructive">Campo obrigatório</p>
                 )}
+              </div>
+              <div className="space-y-2">
+                <Label>
+                  Validade do Orçamento <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="date"
+                  value={validUntil}
+                  onChange={(e) => setValidUntil(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  className={cn(!validUntil && 'border-destructive focus-visible:ring-destructive')}
+                />
+                {!validUntil && <p className="text-[10px] text-destructive">Data é obrigatória</p>}
               </div>
               <div className="space-y-2">
                 <Label>Adicionar Produto</Label>
@@ -277,7 +287,7 @@ export default function Quotes() {
               </div>
               <Button
                 className="w-full h-12 text-lg"
-                disabled={cart.length === 0 || !customerName.trim()}
+                disabled={cart.length === 0 || !customerName.trim() || !validUntil}
                 onClick={handleSaveQuote}
               >
                 Salvar Orçamento
@@ -313,55 +323,110 @@ export default function Quotes() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {quotes.map((q) => (
-              <TableRow key={q.id}>
-                <TableCell className="pl-6 font-medium">
-                  <div>{q.id}</div>
-                  <div className="text-xs text-muted-foreground font-normal">
-                    {new Date(q.date).toLocaleDateString('pt-BR')}
-                  </div>
-                </TableCell>
-                <TableCell className="font-medium">{q.customer}</TableCell>
-                <TableCell className="text-right font-medium">{formatCurrency(q.total)}</TableCell>
-                <TableCell className="text-center">
-                  <Badge
-                    variant={q.status === 'Pendente' ? 'secondary' : 'default'}
-                    className={q.status === 'Convertido' ? 'bg-emerald-500' : ''}
-                  >
-                    {q.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right pr-6 space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                    onClick={() => openWhatsappDialog(q)}
-                    title="Enviar via WhatsApp"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setReceiptQuote(q)}
-                    title="Ver Recibo"
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  {q.status === 'Pendente' && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setSelectedQuoteId(q.id)}
-                      className="hover:bg-primary/10"
-                    >
-                      <CheckCircle2 className="h-4 w-4 mr-1" /> Converter
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+            {quotes.map((q) => {
+              const isExpired =
+                q.validUntil && new Date(q.validUntil) < new Date(new Date().setHours(0, 0, 0, 0))
+              const isNearExpiration =
+                q.validUntil &&
+                !isExpired &&
+                new Date(q.validUntil).getTime() - new Date().getTime() <= 48 * 60 * 60 * 1000
+
+              return (
+                <TableRow key={q.id}>
+                  <TableCell className="pl-6 font-medium">
+                    <div>{q.id}</div>
+                    <div className="text-xs text-muted-foreground font-normal">
+                      {new Date(q.date).toLocaleDateString('pt-BR')}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-medium">{q.customer}</TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(q.total)}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <Badge
+                        variant={q.status === 'Pendente' ? 'secondary' : 'default'}
+                        className={q.status === 'Convertido' ? 'bg-emerald-500' : ''}
+                      >
+                        {q.status}
+                      </Badge>
+                      {q.status === 'Pendente' && q.validUntil && (
+                        <span
+                          className={cn(
+                            'text-[10px] flex items-center font-medium',
+                            isExpired
+                              ? 'text-destructive'
+                              : isNearExpiration
+                                ? 'text-orange-500'
+                                : 'text-muted-foreground',
+                          )}
+                          title={
+                            isExpired
+                              ? 'Expirado'
+                              : isNearExpiration
+                                ? 'Expira em breve'
+                                : 'Validade'
+                          }
+                        >
+                          {isExpired ? (
+                            <AlertCircle className="h-3 w-3 mr-1" />
+                          ) : isNearExpiration ? (
+                            <Clock className="h-3 w-3 mr-1" />
+                          ) : null}
+                          Vence:{' '}
+                          {new Date(q.validUntil).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right pr-6">
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-8 w-8"
+                        onClick={() => openWhatsappDialog(q)}
+                        title="Enviar via WhatsApp"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setReceiptQuote(q)}
+                        title="Ver Recibo"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      {q.status === 'Pendente' && (
+                        <>
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            onClick={() => convertQuoteToPreSale(q.id)}
+                            className="hover:bg-primary/10 h-8 w-8"
+                            title="Converter em Pré-Venda"
+                          >
+                            <ShoppingCart className="h-4 w-4 text-primary" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="outline"
+                            onClick={() => setSelectedQuoteId(q.id)}
+                            className="hover:bg-emerald-50 hover:text-emerald-700 h-8 w-8"
+                            title="Converter em Venda Direta"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
             {quotes.length === 0 && (
               <TableRow>
                 <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
@@ -427,7 +492,14 @@ export default function Quotes() {
               </div>
               <div>Cliente: {receiptQuote?.customer}</div>
               <div>ID: {receiptQuote?.id}</div>
-              <div>Validade: 15 dias</div>
+              <div>
+                Validade:{' '}
+                {receiptQuote?.validUntil
+                  ? new Date(receiptQuote.validUntil).toLocaleDateString('pt-BR', {
+                      timeZone: 'UTC',
+                    })
+                  : '15 dias'}
+              </div>
             </div>
             <table className="w-full mb-2 text-[10px]">
               <thead>

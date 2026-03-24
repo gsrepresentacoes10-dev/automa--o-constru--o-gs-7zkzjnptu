@@ -94,6 +94,7 @@ export interface Purchase {
 export interface Quote {
   id: string
   date: string
+  validUntil?: string
   customerId?: string
   customer?: string
   items: SaleItem[]
@@ -121,6 +122,7 @@ interface AppContextType {
   deletePreSale: (id: string) => void
   customers: Customer[]
   setCustomers: (customers: Customer[]) => void
+  addCustomer: (customer: Omit<Customer, 'id' | 'totalSpent' | 'cashbackBalance'>) => void
   cashbackPercentage: number
   suppliers: Supplier[]
   setSuppliers: (suppliers: Supplier[]) => void
@@ -129,6 +131,7 @@ interface AppContextType {
   quotes: Quote[]
   addQuote: (quote: Omit<Quote, 'id' | 'date' | 'status'>) => void
   convertQuoteToSale: (quoteId: string, paymentMethod: PaymentMethod) => void
+  convertQuoteToPreSale: (quoteId: string) => void
 }
 
 const initialUsers: User[] = [
@@ -300,6 +303,29 @@ const initialSuppliers: Supplier[] = [
   },
 ]
 
+const initialQuotes: Quote[] = [
+  {
+    id: 'ORC-1001',
+    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    validUntil: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // Expired
+    customerId: '1',
+    customer: 'Construtora Alpha Ltda',
+    items: [{ product: initialProducts[3], quantity: 50, total: 2995 }],
+    total: 2995,
+    status: 'Pendente',
+  },
+  {
+    id: 'ORC-1002',
+    date: new Date().toISOString(),
+    validUntil: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(), // Near Expiration
+    customerId: '2',
+    customer: 'João Silva',
+    items: [{ product: initialProducts[5], quantity: 5, total: 225 }],
+    total: 225,
+    status: 'Pendente',
+  },
+]
+
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -311,7 +337,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
   const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers)
   const [purchases, setPurchases] = useState<Purchase[]>([])
-  const [quotes, setQuotes] = useState<Quote[]>([])
+  const [quotes, setQuotes] = useState<Quote[]>(initialQuotes)
   const cashbackPercentage = 2
 
   const addUser = (newUser: Omit<User, 'id'>) => {
@@ -322,6 +348,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteUser = (id: string) => {
     setUsers(users.filter((u) => u.id !== id))
     toast({ title: 'Usuário Removido', description: 'O acesso foi revogado.' })
+  }
+
+  const addCustomer = (newCustomer: Omit<Customer, 'id' | 'totalSpent' | 'cashbackBalance'>) => {
+    const customer: Customer = {
+      ...newCustomer,
+      id: `CUST-${Date.now()}`,
+      totalSpent: 0,
+      cashbackBalance: 0,
+    }
+    setCustomers([customer, ...customers])
+    toast({
+      title: 'Cliente Cadastrado',
+      description: 'Novo cliente adicionado com sucesso.',
+    })
   }
 
   const addPreSale = (preSale: Omit<PreSale, 'id' | 'date'>) => {
@@ -377,7 +417,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const convertQuoteToSale = (quoteId: string, paymentMethod: PaymentMethod) => {
     const quote = quotes.find((q) => q.id === quoteId)
-    if (!quote) return
+    if (!quote || quote.status !== 'Pendente') return
 
     setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, status: 'Convertido' } : q)))
 
@@ -392,6 +432,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toast({
       title: 'Orçamento Convertido',
       description: 'O orçamento foi convertido em venda e o estoque foi atualizado.',
+    })
+  }
+
+  const convertQuoteToPreSale = (quoteId: string) => {
+    const quote = quotes.find((q) => q.id === quoteId)
+    if (!quote || quote.status !== 'Pendente') return
+
+    setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, status: 'Convertido' } : q)))
+
+    addPreSale({
+      customerName: quote.customer || 'Consumidor Final',
+      items: quote.items,
+      total: quote.total,
+      discountType: 'fixed',
+      discountValue: quote.discount ? quote.discount.toString() : '',
+    })
+
+    toast({
+      title: 'Pré-venda Criada',
+      description: 'Orçamento convertido para pré-venda com sucesso.',
     })
   }
 
@@ -469,6 +529,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         deletePreSale,
         customers,
         setCustomers,
+        addCustomer,
         cashbackPercentage,
         suppliers,
         setSuppliers,
@@ -477,6 +538,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         quotes,
         addQuote,
         convertQuoteToSale,
+        convertQuoteToPreSale,
       }}
     >
       {children}

@@ -56,6 +56,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { CustomerCombobox } from '@/components/CustomerCombobox'
 
 export default function Sales() {
   const {
@@ -671,17 +672,30 @@ export default function Sales() {
                 Nome do Cliente / Identificação do Pedido{' '}
                 <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="customerName"
-                placeholder="Ex: João da Obra / Pedido WhatsApp"
-                value={preSaleCustomerName}
-                onChange={(e) => setPreSaleCustomerName(e.target.value)}
-                autoFocus
-                className={cn(
-                  !preSaleCustomerName.trim() &&
-                    'border-destructive focus-visible:ring-destructive',
-                )}
-              />
+              <div className="flex flex-col gap-2">
+                <CustomerCombobox
+                  customers={customers}
+                  value="none"
+                  onChange={(val) => {
+                    if (val !== 'none') {
+                      const c = customers.find((x) => x.id === val)
+                      if (c) setPreSaleCustomerName(c.name)
+                    }
+                  }}
+                  placeholder="Preencher com cliente existente..."
+                />
+                <Input
+                  id="customerName"
+                  placeholder="Ou digite o nome avulso / identificação"
+                  value={preSaleCustomerName}
+                  onChange={(e) => setPreSaleCustomerName(e.target.value)}
+                  autoFocus
+                  className={cn(
+                    !preSaleCustomerName.trim() &&
+                      'border-destructive focus-visible:ring-destructive',
+                  )}
+                />
+              </div>
               {!preSaleCustomerName.trim() && (
                 <p className="text-[10px] text-destructive">
                   O nome do cliente é obrigatório para salvar a pré-venda.
@@ -715,19 +729,12 @@ export default function Sales() {
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label>Cliente (Fidelidade / Prazo)</Label>
-              <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um cliente" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Consumidor Final (Sem Cadastro)</SelectItem>
-                  {customers.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CustomerCombobox
+                customers={customers}
+                value={selectedCustomerId}
+                onChange={setSelectedCustomerId}
+                allowWalkIn
+              />
             </div>
 
             <div className="space-y-2">
