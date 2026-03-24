@@ -25,6 +25,7 @@ import {
   Play,
   RotateCcw,
   Gift,
+  Camera,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -58,6 +59,7 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { CustomerCombobox } from '@/components/CustomerCombobox'
+import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
 
 export default function Sales() {
   const {
@@ -77,6 +79,7 @@ export default function Sales() {
 
   const [searchTerm, setSearchTerm] = useState('')
   const [barcode, setBarcode] = useState('')
+  const [isScannerOpen, setIsScannerOpen] = useState(false)
   const [cart, setCart] = useState<SaleItem[]>([])
 
   const [activePreSaleId, setActivePreSaleId] = useState<string | null>(null)
@@ -158,12 +161,13 @@ export default function Sales() {
     )
   }
 
-  const handleBarcodeScan = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!barcode.trim()) return
+  const processBarcode = (scannedBarcode: string) => {
+    if (!scannedBarcode.trim()) return
     const product = products.find(
       (p) =>
-        p.sku.toLowerCase() === barcode.toLowerCase() || p.id === barcode || p.barcode === barcode,
+        p.sku.toLowerCase() === scannedBarcode.toLowerCase() ||
+        p.id === scannedBarcode ||
+        p.barcode === scannedBarcode,
     )
     if (product) {
       if (product.stock <= 0) {
@@ -171,7 +175,6 @@ export default function Sales() {
         return
       }
       addToCart(product)
-      setBarcode('')
       toast({ title: 'Adicionado: ' + product.name })
     } else {
       toast({
@@ -180,6 +183,16 @@ export default function Sales() {
         description: 'Verifique o código de barras.',
       })
     }
+  }
+
+  const handleBarcodeScan = (e: React.FormEvent) => {
+    e.preventDefault()
+    processBarcode(barcode)
+    setBarcode('')
+  }
+
+  const handleCameraScan = (scannedBarcode: string) => {
+    processBarcode(scannedBarcode)
   }
 
   const cartTotal = cart.reduce((acc, item) => acc + item.total, 0)
@@ -338,15 +351,26 @@ export default function Sales() {
         {/* Left Panel */}
         <div className="flex-1 flex flex-col gap-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <form onSubmit={handleBarcodeScan} className="relative">
-              <ScanLine className="absolute left-3 top-3 h-5 w-5 text-primary" />
-              <Input
-                placeholder="Escanear código de barras..."
-                className="pl-10 h-12 shadow-sm border-primary/50 focus-visible:ring-primary"
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                autoFocus
-              />
+            <form onSubmit={handleBarcodeScan} className="relative flex gap-2">
+              <div className="relative flex-1">
+                <ScanLine className="absolute left-3 top-3 h-5 w-5 text-primary" />
+                <Input
+                  placeholder="Escanear (USB)..."
+                  className="pl-10 h-12 shadow-sm border-primary/50 focus-visible:ring-primary"
+                  value={barcode}
+                  onChange={(e) => setBarcode(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-12 w-12 shrink-0 border-primary/50 text-primary hover:bg-primary/10"
+                onClick={() => setIsScannerOpen(true)}
+                title="Escanear com Câmera"
+              >
+                <Camera className="h-5 w-5" />
+              </Button>
               <button type="submit" className="hidden" />
             </form>
             <div className="relative">
@@ -1037,6 +1061,12 @@ export default function Sales() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BarcodeScannerModal
+        open={isScannerOpen}
+        onOpenChange={setIsScannerOpen}
+        onScan={handleCameraScan}
+      />
     </Tabs>
   )
 }
