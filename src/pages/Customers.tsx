@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Users, Search, History, Wallet, ArrowRight, Plus } from 'lucide-react'
+import { Users, Search, History, Wallet, ArrowRight, Plus, Gift } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -77,7 +77,7 @@ export default function Customers() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Clientes e Fidelidade</h1>
           <p className="text-muted-foreground">
-            Gerencie sua carteira de clientes, histórico de compras e saldos de cashback.
+            Gerencie sua carteira de clientes, histórico de compras e programa de fidelidade.
           </p>
         </div>
         <Dialog open={isAdding} onOpenChange={setIsAdding}>
@@ -138,7 +138,7 @@ export default function Customers() {
                 <TableHead>CPF/CNPJ</TableHead>
                 <TableHead>Telefone</TableHead>
                 <TableHead className="text-right">Total Comprado</TableHead>
-                <TableHead className="text-right">Saldo Cashback</TableHead>
+                <TableHead className="text-right">Saldo Fidelidade</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
@@ -160,7 +160,7 @@ export default function Customers() {
                   <TableCell className="text-right font-medium">
                     {formatCurrency(c.totalSpent)}
                   </TableCell>
-                  <TableCell className="text-right font-bold text-emerald-600">
+                  <TableCell className="text-right font-bold text-indigo-600">
                     {formatCurrency(c.cashbackBalance)}
                   </TableCell>
                   <TableCell className="text-right">
@@ -184,25 +184,58 @@ export default function Customers() {
         <SheetContent className="sm:max-w-[600px] w-[90vw] overflow-y-auto">
           <SheetHeader className="mb-6">
             <SheetTitle className="text-2xl">{selectedCustomer?.name}</SheetTitle>
-            <SheetDescription className="flex gap-4">
-              <span>Doc: {selectedCustomer?.document}</span>
-              <span>Tel: {selectedCustomer?.phone}</span>
+            <SheetDescription className="flex flex-col gap-1 mt-2">
+              <span>
+                <strong>Documento:</strong> {selectedCustomer?.document}
+              </span>
+              <span>
+                <strong>Telefone:</strong> {selectedCustomer?.phone}
+              </span>
             </SheetDescription>
           </SheetHeader>
 
-          {totalOutstandingBalance > 0 && (
-            <Card className="mb-6 bg-destructive/5 border-destructive/20 shadow-sm">
-              <CardContent className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-destructive">
-                  <Wallet className="h-5 w-5" />
-                  <span className="font-semibold">Saldo Devedor Total</span>
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <Card className="bg-indigo-50 border-indigo-100 shadow-sm">
+              <CardContent className="p-4 flex flex-col justify-center h-full">
+                <div className="flex items-center gap-2 text-indigo-800 mb-1">
+                  <Gift className="h-4 w-4" />
+                  <span className="font-semibold text-sm">Programa Fidelidade</span>
                 </div>
-                <span className="text-2xl font-bold text-destructive">
-                  {formatCurrency(totalOutstandingBalance)}
+                <span className="text-2xl font-bold text-indigo-700">
+                  {formatCurrency(selectedCustomer?.cashbackBalance || 0)}
                 </span>
+                <span className="text-xs text-indigo-600/80 mt-1">Saldo acumulado disponível</span>
               </CardContent>
             </Card>
-          )}
+
+            {totalOutstandingBalance > 0 ? (
+              <Card className="bg-destructive/5 border-destructive/20 shadow-sm">
+                <CardContent className="p-4 flex flex-col justify-center h-full">
+                  <div className="flex items-center gap-2 text-destructive mb-1">
+                    <Wallet className="h-4 w-4" />
+                    <span className="font-semibold text-sm">Saldo Devedor Total</span>
+                  </div>
+                  <span className="text-2xl font-bold text-destructive">
+                    {formatCurrency(totalOutstandingBalance)}
+                  </span>
+                  <span className="text-xs text-destructive/80 mt-1">
+                    Ref. compras a prazo pendentes
+                  </span>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="bg-emerald-50 border-emerald-100 shadow-sm">
+                <CardContent className="p-4 flex flex-col justify-center h-full">
+                  <div className="flex items-center gap-2 text-emerald-800 mb-1">
+                    <Wallet className="h-4 w-4" />
+                    <span className="font-semibold text-sm">Situação Financeira</span>
+                  </div>
+                  <span className="text-lg font-bold text-emerald-700">Nenhum Débito</span>
+                  <span className="text-xs text-emerald-600/80 mt-1">Cliente em dia</span>
+                </CardContent>
+              </Card>
+            )}
+          </div>
 
           <div className="space-y-4">
             <h3 className="font-semibold flex items-center gap-2 text-lg">

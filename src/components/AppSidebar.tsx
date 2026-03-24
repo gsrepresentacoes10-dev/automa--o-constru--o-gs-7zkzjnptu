@@ -12,6 +12,7 @@ import {
   FileText,
   ShoppingBag,
   Truck,
+  TrendingUp,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -43,10 +44,16 @@ const allItems = [
   { title: 'Estoque', url: '/estoque', icon: Package, roles: ['Admin', 'Manager'] },
   { title: 'Compras', url: '/compras', icon: ShoppingBag, roles: ['Admin', 'Manager'] },
   { title: 'Fornecedores', url: '/fornecedores', icon: Truck, roles: ['Admin', 'Manager'] },
-  { title: 'Contas a Receber', url: '/contas-receber', icon: Landmark, roles: ['Admin'] },
+  {
+    title: 'Financeiro (A Receber)',
+    url: '/contas-receber',
+    icon: Landmark,
+    roles: ['Admin', 'Manager'],
+  },
   { title: 'Notas Fiscais', url: '/notas-fiscais', icon: ReceiptText, roles: ['Admin'] },
   { title: 'Clientes', url: '/clientes', icon: Users, roles: ['Admin', 'Manager'] },
   { title: 'Usuários do Sistema', url: '/colaboradores', icon: UserCog, roles: ['Admin'] },
+  { title: 'Desempenho Equipe', url: '/desempenho', icon: TrendingUp, roles: ['Admin', 'Manager'] },
   { title: 'Relatórios', url: '/relatorios', icon: BarChart3, roles: ['Admin', 'Manager'] },
 ]
 

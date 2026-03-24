@@ -24,6 +24,7 @@ import {
   Save,
   Play,
   RotateCcw,
+  Gift,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -264,6 +265,13 @@ export default function Sales() {
     setSelectedCustomerId('none')
     setUseCashback(false)
     setIsCheckoutOpen(false)
+
+    if (cashbackEarned > 0 && selectedCustomerId !== 'none') {
+      toast({
+        title: 'Fidelidade Atualizada',
+        description: `O cliente ganhou ${formatCurrency(cashbackEarned)} em pontos de fidelidade!`,
+      })
+    }
   }
 
   const printReceipt = () => {
@@ -788,16 +796,19 @@ export default function Sales() {
               </div>
             )}
 
+            {/* Loyalty Program integration */}
             {selectedCustomer && paymentMethod !== 'Venda a Prazo' && (
-              <div className="bg-emerald-50 p-3 rounded-md border border-emerald-100 flex items-center justify-between">
+              <div className="bg-indigo-50 p-3 rounded-md border border-indigo-100 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-emerald-800">Cashback Disponível</p>
-                  <p className="text-xs text-emerald-600 font-bold">
-                    {formatCurrency(availableCashback)}
+                  <p className="text-sm font-semibold text-indigo-900 flex items-center gap-1.5">
+                    <Gift className="h-4 w-4" /> Saldo Fidelidade
+                  </p>
+                  <p className="text-xs text-indigo-700 font-bold mt-1">
+                    Disponível: {formatCurrency(availableCashback)}
                   </p>
                 </div>
                 {availableCashback > 0 && (
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 bg-white p-2 rounded border border-indigo-50">
                     <Checkbox
                       id="useCashback"
                       checked={useCashback}
@@ -805,9 +816,9 @@ export default function Sales() {
                     />
                     <Label
                       htmlFor="useCashback"
-                      className="text-sm cursor-pointer text-emerald-800"
+                      className="text-sm cursor-pointer text-indigo-900 font-medium"
                     >
-                      Utilizar saldo
+                      Usar saldo
                     </Label>
                   </div>
                 )}
@@ -826,8 +837,8 @@ export default function Sales() {
                 </div>
               )}
               {appliedCashback > 0 && paymentMethod !== 'Venda a Prazo' && (
-                <div className="flex justify-between text-sm text-emerald-600 font-medium">
-                  <span>Desconto Cashback:</span>
+                <div className="flex justify-between text-sm text-indigo-600 font-medium">
+                  <span>Desconto Fidelidade:</span>
                   <span>-{formatCurrency(appliedCashback)}</span>
                 </div>
               )}
@@ -842,8 +853,9 @@ export default function Sales() {
               {cashbackEarned > 0 &&
                 selectedCustomerId !== 'none' &&
                 paymentMethod !== 'Venda a Prazo' && (
-                  <div className="text-right text-xs text-emerald-600 mt-1 font-medium">
-                    + {formatCurrency(cashbackEarned)} de cashback gerado
+                  <div className="text-right text-xs text-indigo-600 mt-1 font-medium flex justify-end items-center gap-1">
+                    <Gift className="h-3 w-3" /> + {formatCurrency(cashbackEarned)} para o saldo
+                    fidelidade
                   </div>
                 )}
             </div>
@@ -875,6 +887,7 @@ export default function Sales() {
               <div>Cliente: {receiptSale?.customer}</div>
               <div>ID: {receiptSale?.id}</div>
               <div>Pagamento: {receiptSale?.paymentMethod}</div>
+              <div>Vendedor: {receiptSale?.sellerName}</div>
             </div>
             <table className="w-full mb-2 text-[10px]">
               <thead>
@@ -902,7 +915,7 @@ export default function Sales() {
               ) : null}
               {receiptSale?.cashbackUsed && receiptSale.paymentMethod !== 'Venda a Prazo' ? (
                 <div className="text-[10px] mb-1">
-                  Desconto Fid.: -{formatCurrency(receiptSale.cashbackUsed)}
+                  Desconto Fidelidade: -{formatCurrency(receiptSale.cashbackUsed)}
                 </div>
               ) : null}
               <div className="font-bold text-sm mt-1">
@@ -910,7 +923,7 @@ export default function Sales() {
               </div>
               {receiptSale?.cashbackEarned && receiptSale.paymentMethod !== 'Venda a Prazo' ? (
                 <div className="text-[10px] mt-2 border-t border-dashed border-gray-400 pt-2">
-                  Cashback Ganho: {formatCurrency(receiptSale.cashbackEarned)}
+                  Saldo Fidelidade Ganho: {formatCurrency(receiptSale.cashbackEarned)}
                 </div>
               ) : null}
             </div>

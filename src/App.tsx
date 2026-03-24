@@ -15,6 +15,7 @@ import Receivables from './pages/Receivables'
 import Suppliers from './pages/Suppliers'
 import Purchases from './pages/Purchases'
 import Quotes from './pages/Quotes'
+import SellerPerformance from './pages/SellerPerformance'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/notas-fiscais" element={<Invoices />} />
             <Route path="/clientes" element={<Customers />} />
             <Route path="/colaboradores" element={<Staff />} />
+            <Route path="/desempenho" element={<SellerPerformance />} />
             <Route path="/relatorios" element={<Reports />} />
             <Route path="/contas-receber" element={<Receivables />} />
           </Route>

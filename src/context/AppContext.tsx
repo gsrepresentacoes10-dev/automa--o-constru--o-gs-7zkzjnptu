@@ -57,6 +57,8 @@ export interface Sale {
   cashbackUsed?: number
   paymentMethod?: PaymentMethod
   dueDate?: string
+  sellerId?: string
+  sellerName?: string
 }
 
 export interface PreSale {
@@ -106,6 +108,7 @@ export interface Quote {
 interface AppContextType {
   role: Role
   setRole: (role: Role) => void
+  currentUser: User
   users: User[]
   setUsers: (users: User[]) => void
   addUser: (user: Omit<User, 'id'>) => void
@@ -114,7 +117,7 @@ interface AppContextType {
   setProducts: (products: Product[]) => void
   sales: Sale[]
   setSales: (sales: Sale[]) => void
-  addSale: (sale: Omit<Sale, 'id' | 'date' | 'status'>) => Sale
+  addSale: (sale: Omit<Sale, 'id' | 'date' | 'status' | 'sellerId' | 'sellerName'>) => Sale
   markSaleAsPaid: (id: string) => void
   preSales: PreSale[]
   addPreSale: (preSale: Omit<PreSale, 'id' | 'date'>) => void
@@ -252,6 +255,8 @@ const initialSales: Sale[] = [
     total: 934,
     status: 'Pago',
     paymentMethod: 'PIX',
+    sellerId: '3',
+    sellerName: 'Pedro Vendedor',
   },
   {
     id: 'V-1002',
@@ -265,7 +270,9 @@ const initialSales: Sale[] = [
     total: 6890.0,
     status: 'Pendente',
     paymentMethod: 'Venda a Prazo',
-    dueDate: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString(),
+    dueDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // Atrasado para teste
+    sellerId: '3',
+    sellerName: 'Pedro Vendedor',
   },
   {
     id: 'V-1003',
@@ -279,6 +286,8 @@ const initialSales: Sale[] = [
     total: 580,
     status: 'Pago',
     paymentMethod: 'Cartão de Crédito',
+    sellerId: '2',
+    sellerName: 'Ana Gerente',
   },
 ]
 
@@ -331,6 +340,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined)
 export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>(initialUsers)
   const [role, setRole] = useState<Role>('Admin')
+  const [currentUser, setCurrentUser] = useState<User>(initialUsers[0])
   const [products, setProducts] = useState<Product[]>(initialProducts)
   const [sales, setSales] = useState<Sale[]>(initialSales)
   const [preSales, setPreSales] = useState<PreSale[]>(initialPreSales)
@@ -339,6 +349,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [purchases, setPurchases] = useState<Purchase[]>([])
   const [quotes, setQuotes] = useState<Quote[]>(initialQuotes)
   const cashbackPercentage = 2
+
+  const handleSetRole = (newRole: Role) => {
+    setRole(newRole)
+    const matchedUser = users.find((u) => u.role === newRole)
+    if (matchedUser) {
+      setCurrentUser(matchedUser)
+    }
+  }
 
   const addUser = (newUser: Omit<User, 'id'>) => {
     setUsers([...users, { ...newUser, id: Date.now().toString() }])
@@ -455,7 +473,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  const addSale = (newSale: Omit<Sale, 'id' | 'date' | 'status'>): Sale => {
+  const addSale = (
+    newSale: Omit<Sale, 'id' | 'date' | 'status' | 'sellerId' | 'sellerName'>,
+  ): Sale => {
     const isCredit = newSale.paymentMethod === 'Venda a Prazo'
     const sale: Sale = {
       ...newSale,
@@ -463,6 +483,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       date: new Date().toISOString(),
       status: isCredit ? 'Pendente' : 'Pago',
       dueDate: isCredit ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : undefined,
+      sellerId: currentUser.id,
+      sellerName: currentUser.name,
     }
     setSales([sale, ...sales])
 
@@ -512,7 +534,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     <AppContext.Provider
       value={{
         role,
-        setRole,
+        setRole: handleSetRole,
+        currentUser,
         users,
         setUsers,
         addUser,

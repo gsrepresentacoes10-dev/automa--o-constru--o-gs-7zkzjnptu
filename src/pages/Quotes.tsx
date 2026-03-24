@@ -12,6 +12,8 @@ import {
   Eye,
   AlertCircle,
   Clock,
+  Download,
+  Mail,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -55,7 +57,7 @@ export default function Quotes() {
   const [discount, setDiscount] = useState('')
   const [validUntil, setValidUntil] = useState('')
 
-  const [receiptQuote, setReceiptQuote] = useState<Quote | null>(null)
+  const [a4Quote, setA4Quote] = useState<Quote | null>(null)
   const [whatsappQuote, setWhatsappQuote] = useState<Quote | null>(null)
   const [whatsappPhone, setWhatsappPhone] = useState('')
 
@@ -108,7 +110,7 @@ export default function Quotes() {
       total: finalTotal,
       discount: discountVal > 0 ? discountVal : undefined,
     }
-    setReceiptQuote(newQuoteObj)
+    setA4Quote(newQuoteObj)
   }
 
   const handleConvert = () => {
@@ -118,10 +120,10 @@ export default function Quotes() {
     }
   }
 
-  const printReceipt = () => {
-    document.body.classList.add('printing-thermal')
+  const printA4PDF = () => {
+    document.body.classList.add('printing-a4')
     window.print()
-    setTimeout(() => document.body.classList.remove('printing-thermal'), 500)
+    setTimeout(() => document.body.classList.remove('printing-a4'), 500)
   }
 
   const openWhatsappDialog = (quote: Quote) => {
@@ -135,16 +137,18 @@ export default function Quotes() {
   }
 
   const sendWhatsappMessage = (quote: Quote, phone: string) => {
-    const summary = quote.items
-      .slice(0, 3)
-      .map((i) => `${i.quantity}x ${i.product.name}`)
-      .join(', ')
-    const extendedSummary =
-      quote.items.length > 3 ? `${summary} e mais ${quote.items.length - 3} itens` : summary
-    const text = `Olá${quote.customer && quote.customer !== 'Consumidor Final' ? ` ${quote.customer}` : ''}, aqui é da ConstruMaster. Segue o resumo do seu orçamento: ${extendedSummary}. Total estimado: ${formatCurrency(quote.total)}. Qualquer dúvida, estamos à disposição!`
+    const text = `Olá${quote.customer && quote.customer !== 'Consumidor Final' ? ` ${quote.customer}` : ''}, aqui é da ConstruMaster.\n\nSegue o resumo do seu orçamento *#${quote.id}*.\n*Valor Total Estimado:* ${formatCurrency(quote.total)}\n*Validade:* ${quote.validUntil ? new Date(quote.validUntil).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'N/A'}\n\nO documento completo em PDF pode ser solicitado ou retirado na loja.\nQualquer dúvida, estamos à disposição!`
     const cleanPhone = phone.replace(/\D/g, '')
     window.open(`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank')
     setWhatsappQuote(null)
+  }
+
+  const sendEmail = (quote: Quote) => {
+    const subject = encodeURIComponent(`Orçamento ConstruMaster #${quote.id}`)
+    const body = encodeURIComponent(
+      `Olá ${quote.customer || 'Cliente'},\n\nSegue o resumo do seu orçamento:\n\nNº do Orçamento: ${quote.id}\nValor Total: ${formatCurrency(quote.total)}\nValidade: ${quote.validUntil ? new Date(quote.validUntil).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'N/A'}\n\nFicamos à disposição para qualquer dúvida.\n\nAtenciosamente,\nEquipe ConstruMaster`,
+    )
+    window.location.href = `mailto:?subject=${subject}&body=${body}`
   }
 
   if (isCreating) {
@@ -303,8 +307,8 @@ export default function Quotes() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Orçamentos</h1>
-          <p className="text-muted-foreground">Crie e converta orçamentos em vendas facilmente.</p>
+          <h1 className="text-2xl font-bold tracking-tight">Orçamentos Profissionais</h1>
+          <p className="text-muted-foreground">Crie, gere PDFs e converta orçamentos em vendas.</p>
         </div>
         <Button onClick={() => setIsCreating(true)}>
           <Plus className="mr-2 h-4 w-4" /> Novo Orçamento
@@ -319,7 +323,7 @@ export default function Quotes() {
               <TableHead>Cliente</TableHead>
               <TableHead className="text-right">Valor Estimado</TableHead>
               <TableHead className="text-center">Status</TableHead>
-              <TableHead className="text-right pr-6">Ações</TableHead>
+              <TableHead className="text-right pr-6">Ações Rápidas</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -385,6 +389,15 @@ export default function Quotes() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-8 w-8"
+                        onClick={() => sendEmail(q)}
+                        title="Enviar por Email"
+                      >
+                        <Mail className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-8 w-8"
                         onClick={() => openWhatsappDialog(q)}
                         title="Enviar via WhatsApp"
@@ -394,11 +407,11 @@ export default function Quotes() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setReceiptQuote(q)}
-                        title="Ver Recibo"
+                        className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                        onClick={() => setA4Quote(q)}
+                        title="Gerar PDF Profissional"
                       >
-                        <Eye className="h-4 w-4" />
+                        <FileText className="h-4 w-4" />
                       </Button>
                       {q.status === 'Pendente' && (
                         <>
@@ -477,77 +490,160 @@ export default function Quotes() {
         </DialogContent>
       </Dialog>
 
-      {/* Receipt Dialog (Thermal Print) */}
-      <Dialog open={!!receiptQuote} onOpenChange={(open) => !open && setReceiptQuote(null)}>
-        <DialogContent className="sm:max-w-[400px] thermal-dialog-content">
-          <DialogHeader className="print:hidden hide-in-thermal">
-            <DialogTitle>Impressão de Orçamento</DialogTitle>
+      {/* Professional A4 PDF Dialog */}
+      <Dialog open={!!a4Quote} onOpenChange={(open) => !open && setA4Quote(null)}>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden a4-pdf-document">
+          <DialogHeader className="p-4 border-b shrink-0 flex flex-row items-center justify-between print-hidden bg-background z-10">
+            <DialogTitle className="flex items-center gap-2 text-indigo-700">
+              <FileText className="h-5 w-5" /> Orçamento Profissional (PDF)
+            </DialogTitle>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setA4Quote(null)}>
+                Fechar
+              </Button>
+              <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700" onClick={printA4PDF}>
+                <Download className="h-4 w-4 mr-2" /> Salvar / Imprimir PDF
+              </Button>
+            </div>
           </DialogHeader>
-          <div className="thermal-receipt bg-white text-black p-4 text-xs font-mono border rounded-md">
-            <div className="text-center font-bold text-base mb-1">CONSTRUMASTER</div>
-            <div className="text-center mb-2 font-bold bg-black text-white py-1">ORÇAMENTO</div>
-            <div className="border-b border-dashed border-gray-400 mb-2 pb-2 text-[10px]">
-              <div>
-                Data: {receiptQuote ? new Date(receiptQuote.date).toLocaleString('pt-BR') : ''}
-              </div>
-              <div>Cliente: {receiptQuote?.customer}</div>
-              <div>ID: {receiptQuote?.id}</div>
-              <div>
-                Validade:{' '}
-                {receiptQuote?.validUntil
-                  ? new Date(receiptQuote.validUntil).toLocaleDateString('pt-BR', {
-                      timeZone: 'UTC',
-                    })
-                  : '15 dias'}
-              </div>
-            </div>
-            <table className="w-full mb-2 text-[10px]">
-              <thead>
-                <tr className="border-b border-dashed border-gray-400">
-                  <th className="text-left font-normal pb-1">Item</th>
-                  <th className="text-right font-normal pb-1">Qtd</th>
-                  <th className="text-right font-normal pb-1">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {receiptQuote?.items.map((item, i) => (
-                  <tr key={i}>
-                    <td className="truncate max-w-[120px] py-1">{item.product.name}</td>
-                    <td className="text-right py-1">{item.quantity}</td>
-                    <td className="text-right py-1">{formatCurrency(item.total)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="border-t border-dashed border-gray-400 pt-2 text-right">
-              {receiptQuote?.discount ? (
-                <div className="text-[10px] mb-1">
-                  Desconto: -{formatCurrency(receiptQuote.discount)}
+
+          <div className="flex-1 overflow-auto bg-muted/30 p-8 flex justify-center print-hidden">
+            <div className="bg-white shadow-xl a4-pdf-content-wrapper w-full max-w-[210mm] min-h-[297mm] p-10 text-black mx-auto relative">
+              {/* Header */}
+              <div className="flex justify-between items-start border-b-2 border-indigo-900 pb-6 mb-8">
+                <div className="flex items-center gap-4">
+                  <img
+                    src="https://img.usecurling.com/i?q=construction&shape=outline&color=azure"
+                    alt="Logo"
+                    className="w-16 h-16"
+                  />
+                  <div>
+                    <h1 className="text-3xl font-extrabold text-indigo-950 tracking-tight">
+                      CONSTRUMASTER
+                    </h1>
+                    <p className="text-sm text-gray-500 font-medium mt-1">
+                      Materiais de Construção e Acabamentos
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">CNPJ: 12.345.678/0001-90</p>
+                  </div>
                 </div>
-              ) : null}
-              <div className="font-bold text-sm mt-1">
-                TOTAL ESTIMADO: {formatCurrency(receiptQuote?.total || 0)}
+                <div className="text-right">
+                  <div className="bg-indigo-50 text-indigo-800 px-4 py-2 rounded-md border border-indigo-100 mb-2 inline-block">
+                    <h2 className="text-lg font-bold">ORÇAMENTO #{a4Quote?.id}</h2>
+                  </div>
+                  <p className="text-sm">
+                    <strong>Data:</strong>{' '}
+                    {a4Quote ? new Date(a4Quote.date).toLocaleDateString('pt-BR') : ''}
+                  </p>
+                  <p className="text-sm">
+                    <strong>Validade:</strong>{' '}
+                    {a4Quote?.validUntil
+                      ? new Date(a4Quote.validUntil).toLocaleDateString('pt-BR', {
+                          timeZone: 'UTC',
+                        })
+                      : '15 dias'}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="mt-4 pt-2 border-t border-dashed border-gray-400 text-center text-[10px]">
-              Este documento não é válido como nota fiscal.
+
+              {/* Customer Info */}
+              <div className="mb-8 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">
+                  Dados do Cliente
+                </h3>
+                <p className="text-lg font-bold text-gray-900">
+                  {a4Quote?.customer || 'Consumidor Final'}
+                </p>
+                {a4Quote?.customerId && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    Documento (CPF/CNPJ):{' '}
+                    {customers.find((c) => c.id === a4Quote.customerId)?.document || '-'}
+                  </p>
+                )}
+              </div>
+
+              {/* Items Table */}
+              <table className="w-full mb-8">
+                <thead>
+                  <tr className="bg-indigo-900 text-white">
+                    <th className="text-left py-3 px-4 rounded-tl-md font-semibold text-sm">
+                      Item / Descrição
+                    </th>
+                    <th className="text-center py-3 px-4 font-semibold text-sm">Qtd</th>
+                    <th className="text-right py-3 px-4 font-semibold text-sm">V. Unitário</th>
+                    <th className="text-right py-3 px-4 rounded-tr-md font-semibold text-sm">
+                      V. Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {a4Quote?.items.map((item, i) => (
+                    <tr key={i} className="border-b border-gray-200 hover:bg-gray-50">
+                      <td className="py-3 px-4 font-medium text-sm text-gray-800">
+                        {item.product.name}
+                      </td>
+                      <td className="text-center py-3 px-4 text-sm text-gray-600">
+                        {item.quantity} <span className="text-xs">{item.product.unit}</span>
+                      </td>
+                      <td className="text-right py-3 px-4 text-sm text-gray-600">
+                        {formatCurrency(item.product.price)}
+                      </td>
+                      <td className="text-right py-3 px-4 font-semibold text-sm text-gray-900">
+                        {formatCurrency(item.total)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Totals */}
+              <div className="flex justify-end mb-12">
+                <div className="w-72 space-y-3">
+                  {a4Quote?.discount ? (
+                    <div className="flex justify-between items-center text-gray-600 text-sm border-b border-gray-100 pb-2">
+                      <span>Subtotal:</span>
+                      <span>{formatCurrency((a4Quote?.total || 0) + a4Quote.discount)}</span>
+                    </div>
+                  ) : null}
+                  {a4Quote?.discount ? (
+                    <div className="flex justify-between items-center text-red-500 text-sm border-b border-gray-100 pb-2">
+                      <span>Desconto Aplicado:</span>
+                      <span>-{formatCurrency(a4Quote.discount)}</span>
+                    </div>
+                  ) : null}
+                  <div className="flex justify-between items-center bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                    <span className="font-bold text-indigo-900 text-lg">TOTAL ESTIMADO:</span>
+                    <span className="font-black text-indigo-900 text-2xl">
+                      {formatCurrency(a4Quote?.total || 0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer / Terms */}
+              <div className="mt-auto pt-8 border-t border-gray-200">
+                <h4 className="font-bold text-gray-800 text-sm mb-2">Termos e Condições</h4>
+                <ul className="text-xs text-gray-500 space-y-1 list-disc pl-4">
+                  <li>
+                    Este documento não possui valor fiscal. Trata-se apenas de uma estimativa de
+                    custos.
+                  </li>
+                  <li>
+                    Os valores apresentados são válidos até a data de vencimento indicada no
+                    cabeçalho.
+                  </li>
+                  <li>
+                    A disponibilidade dos produtos está sujeita à confirmação de estoque no momento
+                    da conversão em venda.
+                  </li>
+                  <li>Condições de pagamento serão acordadas no ato do faturamento.</li>
+                </ul>
+                <div className="mt-8 text-center text-sm font-bold text-indigo-900">
+                  Obrigado por escolher a ConstruMaster!
+                </div>
+              </div>
             </div>
           </div>
-          <DialogFooter className="print:hidden hide-in-thermal">
-            <Button variant="outline" onClick={() => setReceiptQuote(null)}>
-              Fechar
-            </Button>
-            <Button
-              variant="outline"
-              className="text-emerald-600 hover:text-emerald-700"
-              onClick={() => receiptQuote && openWhatsappDialog(receiptQuote)}
-            >
-              <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
-            </Button>
-            <Button onClick={printReceipt}>
-              <Printer className="mr-2 h-4 w-4" /> Imprimir (Térmica)
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
