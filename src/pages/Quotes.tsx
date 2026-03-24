@@ -7,13 +7,12 @@ import {
   CheckCircle2,
   ShoppingCart,
   Trash2,
-  Printer,
   MessageCircle,
-  Eye,
   AlertCircle,
   Clock,
   Download,
   Mail,
+  Pencil,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,9 +44,19 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { CustomerCombobox } from '@/components/CustomerCombobox'
 
 export default function Quotes() {
-  const { quotes, customers, products, addQuote, convertQuoteToSale, convertQuoteToPreSale } =
-    useAppContext()
-  const [isCreating, setIsCreating] = useState(false)
+  const {
+    quotes,
+    customers,
+    products,
+    addQuote,
+    updateQuote,
+    convertQuoteToSale,
+    convertQuoteToPreSale,
+  } = useAppContext()
+
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null)
+
   const [selectedQuoteId, setSelectedQuoteId] = useState<string | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Dinheiro')
 
@@ -60,6 +69,31 @@ export default function Quotes() {
   const [a4Quote, setA4Quote] = useState<Quote | null>(null)
   const [whatsappQuote, setWhatsappQuote] = useState<Quote | null>(null)
   const [whatsappPhone, setWhatsappPhone] = useState('')
+
+  const handleNewQuote = () => {
+    setEditingQuoteId(null)
+    setCart([])
+    setCustomerId('none')
+    setCustomerName('')
+    setDiscount('')
+    setValidUntil('')
+    setIsFormOpen(true)
+  }
+
+  const handleEditQuote = (quote: Quote) => {
+    setEditingQuoteId(quote.id)
+    setCart(quote.items)
+    setCustomerId(quote.customerId || 'none')
+    setCustomerName(quote.customer || '')
+    setDiscount(quote.discount ? String(quote.discount) : '')
+    setValidUntil(quote.validUntil ? new Date(quote.validUntil).toISOString().split('T')[0] : '')
+    setIsFormOpen(true)
+  }
+
+  const closeForm = () => {
+    setIsFormOpen(false)
+    setEditingQuoteId(null)
+  }
 
   const addToCart = (productId: string) => {
     const p = products.find((x) => x.id === productId)
@@ -84,33 +118,30 @@ export default function Quotes() {
 
   const handleSaveQuote = () => {
     if (cart.length === 0 || !customerName.trim() || !validUntil) return
-    addQuote({
-      customerId: customerId !== 'none' ? customerId : undefined,
-      customer: customerName.trim(),
-      items: cart,
-      total: finalTotal,
-      discount: discountVal > 0 ? discountVal : undefined,
-      validUntil: new Date(validUntil).toISOString(),
-    })
-    setIsCreating(false)
-    setCart([])
-    setCustomerId('none')
-    setCustomerName('')
-    setDiscount('')
-    setValidUntil('')
 
-    const newQuoteObj = {
-      id: `ORC-${1000 + quotes.length + 1}`,
-      date: new Date().toISOString(),
-      status: 'Pendente' as const,
-      validUntil: new Date(validUntil).toISOString(),
+    const quoteData = {
       customerId: customerId !== 'none' ? customerId : undefined,
       customer: customerName.trim(),
       items: cart,
       total: finalTotal,
       discount: discountVal > 0 ? discountVal : undefined,
+      validUntil: new Date(validUntil).toISOString(),
     }
-    setA4Quote(newQuoteObj)
+
+    if (editingQuoteId) {
+      updateQuote(editingQuoteId, quoteData)
+    } else {
+      addQuote(quoteData)
+      const newQuoteObj = {
+        id: `ORC-${1000 + quotes.length + 1}`,
+        date: new Date().toISOString(),
+        status: 'Pendente' as const,
+        ...quoteData,
+      }
+      setA4Quote(newQuoteObj)
+    }
+
+    closeForm()
   }
 
   const handleConvert = () => {
@@ -151,13 +182,15 @@ export default function Quotes() {
     window.location.href = `mailto:?subject=${subject}&body=${body}`
   }
 
-  if (isCreating) {
+  if (isFormOpen) {
     return (
       <div className="space-y-6 h-full flex flex-col">
         <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Novo Orçamento</h1>
-          <Button variant="outline" onClick={() => setIsCreating(false)}>
-            Voltar
+          <h1 className="text-2xl font-bold">
+            {editingQuoteId ? 'Editar Orçamento' : 'Novo Orçamento'}
+          </h1>
+          <Button variant="outline" onClick={closeForm}>
+            Cancelar
           </Button>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 h-[calc(100vh-10rem)]">
@@ -294,7 +327,7 @@ export default function Quotes() {
                 disabled={cart.length === 0 || !customerName.trim() || !validUntil}
                 onClick={handleSaveQuote}
               >
-                Salvar Orçamento
+                {editingQuoteId ? 'Salvar Alterações' : 'Salvar Orçamento'}
               </Button>
             </div>
           </div>
@@ -310,7 +343,7 @@ export default function Quotes() {
           <h1 className="text-2xl font-bold tracking-tight">Orçamentos Profissionais</h1>
           <p className="text-muted-foreground">Crie, gere PDFs e converta orçamentos em vendas.</p>
         </div>
-        <Button onClick={() => setIsCreating(true)}>
+        <Button onClick={handleNewQuote}>
           <Plus className="mr-2 h-4 w-4" /> Novo Orçamento
         </Button>
       </div>
@@ -415,6 +448,15 @@ export default function Quotes() {
                       </Button>
                       {q.status === 'Pendente' && (
                         <>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleEditQuote(q)}
+                            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 h-8 w-8"
+                            title="Editar Orçamento"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
                           <Button
                             size="icon"
                             variant="outline"

@@ -133,6 +133,7 @@ interface AppContextType {
   addPurchase: (purchase: Omit<Purchase, 'id' | 'date'>) => void
   quotes: Quote[]
   addQuote: (quote: Omit<Quote, 'id' | 'date' | 'status'>) => void
+  updateQuote: (id: string, quote: Partial<Quote>) => void
   convertQuoteToSale: (quoteId: string, paymentMethod: PaymentMethod) => void
   convertQuoteToPreSale: (quoteId: string) => void
 }
@@ -433,6 +434,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toast({ title: 'Orçamento Salvo', description: `Orçamento ${quote.id} criado com sucesso.` })
   }
 
+  const updateQuote = (id: string, updatedQuote: Partial<Quote>) => {
+    setQuotes((prev) => prev.map((q) => (q.id === id ? { ...q, ...updatedQuote } : q)))
+    toast({ title: 'Orçamento Atualizado', description: `Orçamento ${id} atualizado com sucesso.` })
+  }
+
   const convertQuoteToSale = (quoteId: string, paymentMethod: PaymentMethod) => {
     const quote = quotes.find((q) => q.id === quoteId)
     if (!quote || quote.status !== 'Pendente') return
@@ -560,6 +566,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addPurchase,
         quotes,
         addQuote,
+        updateQuote,
         convertQuoteToSale,
         convertQuoteToPreSale,
       }}
