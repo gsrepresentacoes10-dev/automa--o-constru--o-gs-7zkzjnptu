@@ -10,6 +10,12 @@ export interface User {
   role: Role
 }
 
+export interface Seller {
+  id: string
+  code: string
+  name: string
+}
+
 export type PaymentMethod =
   | 'Dinheiro'
   | 'PIX'
@@ -59,6 +65,7 @@ export interface Sale {
   dueDate?: string
   sellerId?: string
   sellerName?: string
+  sellerCode?: string
 }
 
 export interface PreSale {
@@ -93,6 +100,11 @@ export interface Purchase {
   total: number
 }
 
+export interface QuoteEditLog {
+  timestamp: string
+  userName: string
+}
+
 export interface Quote {
   id: string
   date: string
@@ -102,7 +114,11 @@ export interface Quote {
   items: SaleItem[]
   total: number
   discount?: number
-  status: 'Pendente' | 'Convertido' | 'Cancelado'
+  status: 'Pendente' | 'Aprovado' | 'Reprovado' | 'Convertido' | 'Cancelado'
+  sellerId?: string
+  sellerName?: string
+  sellerCode?: string
+  editHistory?: QuoteEditLog[]
 }
 
 interface AppContextType {
@@ -113,11 +129,15 @@ interface AppContextType {
   setUsers: (users: User[]) => void
   addUser: (user: Omit<User, 'id'>) => void
   deleteUser: (id: string) => void
+  sellers: Seller[]
+  addSeller: (seller: Omit<Seller, 'id'>) => void
+  updateSeller: (id: string, seller: Omit<Seller, 'id'>) => void
+  deleteSeller: (id: string) => void
   products: Product[]
   setProducts: (products: Product[]) => void
   sales: Sale[]
   setSales: (sales: Sale[]) => void
-  addSale: (sale: Omit<Sale, 'id' | 'date' | 'status' | 'sellerId' | 'sellerName'>) => Sale
+  addSale: (sale: Omit<Sale, 'id' | 'date' | 'status'>) => Sale
   markSaleAsPaid: (id: string) => void
   preSales: PreSale[]
   addPreSale: (preSale: Omit<PreSale, 'id' | 'date'>) => void
@@ -133,7 +153,8 @@ interface AppContextType {
   addPurchase: (purchase: Omit<Purchase, 'id' | 'date'>) => void
   quotes: Quote[]
   addQuote: (quote: Omit<Quote, 'id' | 'date' | 'status'>) => void
-  updateQuote: (id: string, quote: Partial<Quote>) => void
+  updateQuote: (id: string, quote: Partial<Quote>, logEdit?: boolean) => void
+  duplicateQuote: (id: string) => Quote | null
   convertQuoteToSale: (quoteId: string, paymentMethod: PaymentMethod) => void
   convertQuoteToPreSale: (quoteId: string) => void
 }
@@ -142,6 +163,11 @@ const initialUsers: User[] = [
   { id: '1', name: 'Carlos Admin', email: 'carlos@construmaster.com', role: 'Admin' },
   { id: '2', name: 'Ana Gerente', email: 'ana@construmaster.com', role: 'Manager' },
   { id: '3', name: 'Pedro Vendedor', email: 'pedro@construmaster.com', role: 'Seller' },
+]
+
+const initialSellers: Seller[] = [
+  { id: '1', code: 'V001', name: 'Pedro Vendedor' },
+  { id: '2', code: 'V002', name: 'Ana Gerente' },
 ]
 
 const initialProducts: Product[] = [
@@ -271,7 +297,7 @@ const initialSales: Sale[] = [
     total: 6890.0,
     status: 'Pendente',
     paymentMethod: 'Venda a Prazo',
-    dueDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // Atrasado para teste
+    dueDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     sellerId: '3',
     sellerName: 'Pedro Vendedor',
   },
@@ -317,22 +343,30 @@ const initialQuotes: Quote[] = [
   {
     id: 'ORC-1001',
     date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    validUntil: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // Expired
+    validUntil: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     customerId: '1',
     customer: 'Construtora Alpha Ltda',
     items: [{ product: initialProducts[3], quantity: 50, total: 2995 }],
     total: 2995,
     status: 'Pendente',
+    sellerId: '1',
+    sellerCode: 'V001',
+    sellerName: 'Pedro Vendedor',
+    editHistory: [],
   },
   {
     id: 'ORC-1002',
     date: new Date().toISOString(),
-    validUntil: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(), // Near Expiration
+    validUntil: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
     customerId: '2',
     customer: 'João Silva',
     items: [{ product: initialProducts[5], quantity: 5, total: 225 }],
     total: 225,
-    status: 'Pendente',
+    status: 'Aprovado',
+    sellerId: '2',
+    sellerCode: 'V002',
+    sellerName: 'Ana Gerente',
+    editHistory: [],
   },
 ]
 
@@ -342,6 +376,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>(initialUsers)
   const [role, setRole] = useState<Role>('Admin')
   const [currentUser, setCurrentUser] = useState<User>(initialUsers[0])
+  const [sellers, setSellers] = useState<Seller[]>(initialSellers)
   const [products, setProducts] = useState<Product[]>(initialProducts)
   const [sales, setSales] = useState<Sale[]>(initialSales)
   const [preSales, setPreSales] = useState<PreSale[]>(initialPreSales)
@@ -367,6 +402,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteUser = (id: string) => {
     setUsers(users.filter((u) => u.id !== id))
     toast({ title: 'Usuário Removido', description: 'O acesso foi revogado.' })
+  }
+
+  const addSeller = (seller: Omit<Seller, 'id'>) => {
+    const newSeller = { ...seller, id: Date.now().toString() }
+    setSellers([...sellers, newSeller])
+    toast({ title: 'Vendedor Cadastrado', description: 'Vendedor adicionado com sucesso.' })
+  }
+
+  const updateSeller = (id: string, seller: Omit<Seller, 'id'>) => {
+    setSellers((prev) => prev.map((s) => (s.id === id ? { ...s, ...seller } : s)))
+    toast({ title: 'Vendedor Atualizado', description: 'Vendedor atualizado com sucesso.' })
+  }
+
+  const deleteSeller = (id: string) => {
+    setSellers((prev) => prev.filter((s) => s.id !== id))
+    toast({ title: 'Vendedor Removido' })
   }
 
   const addCustomer = (newCustomer: Omit<Customer, 'id' | 'totalSpent' | 'cashbackBalance'>) => {
@@ -429,19 +480,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
       id: `ORC-${1000 + quotes.length + 1}`,
       date: new Date().toISOString(),
       status: 'Pendente',
+      editHistory: [],
     }
     setQuotes([quote, ...quotes])
     toast({ title: 'Orçamento Salvo', description: `Orçamento ${quote.id} criado com sucesso.` })
   }
 
-  const updateQuote = (id: string, updatedQuote: Partial<Quote>) => {
-    setQuotes((prev) => prev.map((q) => (q.id === id ? { ...q, ...updatedQuote } : q)))
+  const updateQuote = (id: string, updatedQuote: Partial<Quote>, logEdit: boolean = false) => {
+    setQuotes((prev) =>
+      prev.map((q) => {
+        if (q.id === id) {
+          const newHistory = [...(q.editHistory || [])]
+          if (logEdit) {
+            newHistory.push({
+              timestamp: new Date().toISOString(),
+              userName: currentUser.name,
+            })
+          }
+          return { ...q, ...updatedQuote, editHistory: newHistory }
+        }
+        return q
+      }),
+    )
     toast({ title: 'Orçamento Atualizado', description: `Orçamento ${id} atualizado com sucesso.` })
+  }
+
+  const duplicateQuote = (id: string): Quote | null => {
+    const quote = quotes.find((q) => q.id === id)
+    if (!quote) return null
+
+    const newQuote: Quote = {
+      ...quote,
+      id: `ORC-${1000 + quotes.length + 1}`,
+      date: new Date().toISOString(),
+      status: 'Pendente',
+      editHistory: [],
+    }
+
+    setQuotes([newQuote, ...quotes])
+    toast({
+      title: 'Orçamento Duplicado',
+      description: `Novo orçamento ${newQuote.id} criado com sucesso.`,
+    })
+    return newQuote
   }
 
   const convertQuoteToSale = (quoteId: string, paymentMethod: PaymentMethod) => {
     const quote = quotes.find((q) => q.id === quoteId)
-    if (!quote || quote.status !== 'Pendente') return
+    if (!quote || quote.status === 'Convertido' || quote.status === 'Cancelado') return
 
     setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, status: 'Convertido' } : q)))
 
@@ -452,6 +538,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       total: quote.total,
       discount: quote.discount,
       paymentMethod,
+      sellerId: quote.sellerId,
+      sellerName: quote.sellerName,
+      sellerCode: quote.sellerCode,
     })
     toast({
       title: 'Orçamento Convertido',
@@ -461,7 +550,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const convertQuoteToPreSale = (quoteId: string) => {
     const quote = quotes.find((q) => q.id === quoteId)
-    if (!quote || quote.status !== 'Pendente') return
+    if (!quote || quote.status === 'Convertido' || quote.status === 'Cancelado') return
 
     setQuotes((prev) => prev.map((q) => (q.id === quoteId ? { ...q, status: 'Convertido' } : q)))
 
@@ -479,9 +568,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  const addSale = (
-    newSale: Omit<Sale, 'id' | 'date' | 'status' | 'sellerId' | 'sellerName'>,
-  ): Sale => {
+  const addSale = (newSale: Omit<Sale, 'id' | 'date' | 'status'>): Sale => {
     const isCredit = newSale.paymentMethod === 'Venda a Prazo'
     const sale: Sale = {
       ...newSale,
@@ -489,9 +576,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       date: new Date().toISOString(),
       status: isCredit ? 'Pendente' : 'Pago',
       dueDate: isCredit ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : undefined,
-      sellerId: currentUser.id,
-      sellerName: currentUser.name,
     }
+
+    if (!sale.sellerId && !sale.sellerName) {
+      sale.sellerId = currentUser.id
+      sale.sellerName = currentUser.name
+    }
+
     setSales([sale, ...sales])
 
     const updatedProducts = products.map((p) => {
@@ -546,6 +637,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setUsers,
         addUser,
         deleteUser,
+        sellers,
+        addSeller,
+        updateSeller,
+        deleteSeller,
         products,
         setProducts,
         sales,
@@ -567,6 +662,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         quotes,
         addQuote,
         updateQuote,
+        duplicateQuote,
         convertQuoteToSale,
         convertQuoteToPreSale,
       }}

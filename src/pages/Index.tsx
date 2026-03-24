@@ -2,7 +2,15 @@ import { Navigate } from 'react-router-dom'
 import { useAppContext } from '@/context/AppContext'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/utils'
-import { DollarSign, ShoppingCart, Landmark, PackageOpen } from 'lucide-react'
+import {
+  DollarSign,
+  ShoppingCart,
+  Landmark,
+  PackageOpen,
+  FileText,
+  CheckCircle2,
+  XCircle,
+} from 'lucide-react'
 import { subDays, subWeeks, subMonths, format, startOfWeek, isSameMonth } from 'date-fns'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import {
@@ -18,7 +26,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 export default function Index() {
-  const { products, sales, role } = useAppContext()
+  const { products, sales, quotes, role } = useAppContext()
 
   if (role === 'Seller') {
     return <Navigate to="/vendas" replace />
@@ -31,6 +39,11 @@ export default function Index() {
     .filter((s) => s.status === 'Pendente')
     .reduce((acc, curr) => acc + curr.total, 0)
   const salesCount = sales.length
+
+  const pendingQuotes = quotes.filter((q) => q.status === 'Pendente').length
+  const approvedQuotes = quotes.filter((q) => q.status === 'Aprovado').length
+  const rejectedQuotes = quotes.filter((q) => q.status === 'Reprovado').length
+  const convertedQuotes = quotes.filter((q) => q.status === 'Convertido').length
 
   const dailyData = Array.from({ length: 7 }).map((_, i) => {
     const date = subDays(new Date(), 6 - i)
@@ -111,6 +124,48 @@ export default function Index() {
         </Card>
       </div>
 
+      <div>
+        <h2 className="text-lg font-bold tracking-tight mb-4 mt-2">Status de Orçamentos</h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{pendingQuotes}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-emerald-600">Aprovados</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-emerald-600">{approvedQuotes}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-destructive">Reprovados</CardTitle>
+              <XCircle className="h-4 w-4 text-destructive" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-destructive">{rejectedQuotes}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-primary">Convertidos</CardTitle>
+              <ShoppingCart className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-primary">{convertedQuotes}</div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -129,7 +184,7 @@ export default function Index() {
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(val) => `R$${val / 1000}k`}
+                    tickFormatter={(val) => `R${val / 1000}k`}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Bar
@@ -197,7 +252,7 @@ export default function Index() {
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(val) => `R$${val / 1000}k`}
+                    tickFormatter={(val) => `R${val / 1000}k`}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Line
@@ -228,7 +283,7 @@ export default function Index() {
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(val) => `R$${val / 1000}k`}
+                    tickFormatter={(val) => `R${val / 1000}k`}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Bar

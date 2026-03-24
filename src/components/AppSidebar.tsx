@@ -13,6 +13,7 @@ import {
   ShoppingBag,
   Truck,
   TrendingUp,
+  Tags,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -27,41 +28,55 @@ import {
 } from '@/components/ui/sidebar'
 import { useAppContext } from '@/context/AppContext'
 
-const allItems = [
-  { title: 'Dashboard (BI)', url: '/', icon: LayoutDashboard, roles: ['Admin', 'Manager'] },
+const menuSections = [
   {
-    title: 'PDV / Vendas',
-    url: '/vendas',
-    icon: ShoppingCart,
-    roles: ['Admin', 'Manager', 'Seller'],
+    label: 'Menu Principal',
+    items: [
+      { title: 'Dashboard (BI)', url: '/', icon: LayoutDashboard, roles: ['Admin', 'Manager'] },
+      {
+        title: 'PDV / Vendas',
+        url: '/vendas',
+        icon: ShoppingCart,
+        roles: ['Admin', 'Manager', 'Seller'],
+      },
+      {
+        title: 'Orçamentos',
+        url: '/orcamentos',
+        icon: FileText,
+        roles: ['Admin', 'Manager', 'Seller'],
+      },
+      { title: 'Estoque', url: '/estoque', icon: Package, roles: ['Admin', 'Manager'] },
+      { title: 'Compras', url: '/compras', icon: ShoppingBag, roles: ['Admin', 'Manager'] },
+      { title: 'Fornecedores', url: '/fornecedores', icon: Truck, roles: ['Admin', 'Manager'] },
+      {
+        title: 'Financeiro (A Receber)',
+        url: '/contas-receber',
+        icon: Landmark,
+        roles: ['Admin', 'Manager'],
+      },
+      { title: 'Notas Fiscais', url: '/notas-fiscais', icon: ReceiptText, roles: ['Admin'] },
+      {
+        title: 'Desempenho Equipe',
+        url: '/desempenho',
+        icon: TrendingUp,
+        roles: ['Admin', 'Manager'],
+      },
+      { title: 'Relatórios', url: '/relatorios', icon: BarChart3, roles: ['Admin', 'Manager'] },
+    ],
   },
   {
-    title: 'Orçamentos',
-    url: '/orcamentos',
-    icon: FileText,
-    roles: ['Admin', 'Manager', 'Seller'],
+    label: 'Cadastros',
+    items: [
+      { title: 'Vendedores', url: '/vendedores', icon: Tags, roles: ['Admin', 'Manager'] },
+      { title: 'Clientes', url: '/clientes', icon: Users, roles: ['Admin', 'Manager'] },
+      { title: 'Usuários do Sistema', url: '/colaboradores', icon: UserCog, roles: ['Admin'] },
+    ],
   },
-  { title: 'Estoque', url: '/estoque', icon: Package, roles: ['Admin', 'Manager'] },
-  { title: 'Compras', url: '/compras', icon: ShoppingBag, roles: ['Admin', 'Manager'] },
-  { title: 'Fornecedores', url: '/fornecedores', icon: Truck, roles: ['Admin', 'Manager'] },
-  {
-    title: 'Financeiro (A Receber)',
-    url: '/contas-receber',
-    icon: Landmark,
-    roles: ['Admin', 'Manager'],
-  },
-  { title: 'Notas Fiscais', url: '/notas-fiscais', icon: ReceiptText, roles: ['Admin'] },
-  { title: 'Clientes', url: '/clientes', icon: Users, roles: ['Admin', 'Manager'] },
-  { title: 'Usuários do Sistema', url: '/colaboradores', icon: UserCog, roles: ['Admin'] },
-  { title: 'Desempenho Equipe', url: '/desempenho', icon: TrendingUp, roles: ['Admin', 'Manager'] },
-  { title: 'Relatórios', url: '/relatorios', icon: BarChart3, roles: ['Admin', 'Manager'] },
 ]
 
 export function AppSidebar() {
   const location = useLocation()
   const { role } = useAppContext()
-
-  const menuItems = allItems.filter((item) => item.roles.includes(role))
 
   return (
     <Sidebar>
@@ -74,23 +89,30 @@ export function AppSidebar() {
         </span>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Menu Principal</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={location.pathname === item.url}>
-                    <Link to={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {menuSections.map((section, idx) => {
+          const sectionItems = section.items.filter((item) => item.roles.includes(role))
+          if (sectionItems.length === 0) return null
+
+          return (
+            <SidebarGroup key={idx}>
+              <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {sectionItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={location.pathname === item.url}>
+                        <Link to={item.url}>
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          )
+        })}
       </SidebarContent>
     </Sidebar>
   )

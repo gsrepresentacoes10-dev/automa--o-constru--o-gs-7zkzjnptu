@@ -64,6 +64,7 @@ export default function Sales() {
     products,
     sales,
     customers,
+    sellers,
     addSale,
     cashbackPercentage,
     preSales,
@@ -84,6 +85,7 @@ export default function Sales() {
 
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false)
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('none')
+  const [selectedSellerId, setSelectedSellerId] = useState<string>('none')
   const [useCashback, setUseCashback] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Dinheiro')
 
@@ -244,6 +246,8 @@ export default function Sales() {
     const validItems = cart.filter((i) => i.quantity > 0)
     if (validItems.length === 0) return
 
+    const selectedSeller = sellers.find((s) => s.id === selectedSellerId)
+
     const sale = addSale({
       customerId: selectedCustomerId !== 'none' ? selectedCustomerId : undefined,
       customer: selectedCustomer?.name || 'Consumidor Final',
@@ -254,6 +258,9 @@ export default function Sales() {
       cashbackEarned:
         cashbackEarned > 0 && selectedCustomerId !== 'none' ? cashbackEarned : undefined,
       paymentMethod,
+      sellerId: selectedSeller?.id,
+      sellerName: selectedSeller?.name,
+      sellerCode: selectedSeller?.code,
     })
 
     if (activePreSaleId) {
@@ -263,6 +270,7 @@ export default function Sales() {
     setReceiptSale(sale)
     clearCart()
     setSelectedCustomerId('none')
+    setSelectedSellerId('none')
     setUseCashback(false)
     setIsCheckoutOpen(false)
 
@@ -625,7 +633,15 @@ export default function Sales() {
                       </div>
                       <div className="text-xs text-muted-foreground">{sale.id}</div>
                     </TableCell>
-                    <TableCell>{sale.customer || 'Consumidor Final'}</TableCell>
+                    <TableCell>
+                      {sale.customer || 'Consumidor Final'}
+                      {sale.sellerName && (
+                        <div className="text-xs text-muted-foreground">
+                          Vend: {sale.sellerCode ? `${sale.sellerCode} - ` : ''}
+                          {sale.sellerName}
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell>{sale.paymentMethod || '-'}</TableCell>
                     <TableCell className="text-right font-medium">
                       {formatCurrency(sale.total)}
@@ -743,6 +759,23 @@ export default function Sales() {
                 onChange={setSelectedCustomerId}
                 allowWalkIn
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Vendedor Responsável</Label>
+              <Select value={selectedSellerId} onValueChange={setSelectedSellerId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o vendedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum / Não Informado</SelectItem>
+                  {sellers.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.code} - {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -887,7 +920,10 @@ export default function Sales() {
               <div>Cliente: {receiptSale?.customer}</div>
               <div>ID: {receiptSale?.id}</div>
               <div>Pagamento: {receiptSale?.paymentMethod}</div>
-              <div>Vendedor: {receiptSale?.sellerName}</div>
+              <div>
+                Vendedor: {receiptSale?.sellerCode ? `${receiptSale.sellerCode} - ` : ''}
+                {receiptSale?.sellerName || '-'}
+              </div>
             </div>
             <table className="w-full mb-2 text-[10px]">
               <thead>

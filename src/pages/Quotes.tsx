@@ -13,6 +13,9 @@ import {
   Download,
   Mail,
   Pencil,
+  Copy,
+  Printer,
+  History,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,8 +51,10 @@ export default function Quotes() {
     quotes,
     customers,
     products,
+    sellers,
     addQuote,
     updateQuote,
+    duplicateQuote,
     convertQuoteToSale,
     convertQuoteToPreSale,
   } = useAppContext()
@@ -63,10 +68,12 @@ export default function Quotes() {
   const [cart, setCart] = useState<SaleItem[]>([])
   const [customerId, setCustomerId] = useState('none')
   const [customerName, setCustomerName] = useState('')
+  const [sellerId, setSellerId] = useState('none')
   const [discount, setDiscount] = useState('')
   const [validUntil, setValidUntil] = useState('')
 
   const [a4Quote, setA4Quote] = useState<Quote | null>(null)
+  const [thermalQuote, setThermalQuote] = useState<Quote | null>(null)
   const [whatsappQuote, setWhatsappQuote] = useState<Quote | null>(null)
   const [whatsappPhone, setWhatsappPhone] = useState('')
 
@@ -75,6 +82,7 @@ export default function Quotes() {
     setCart([])
     setCustomerId('none')
     setCustomerName('')
+    setSellerId('none')
     setDiscount('')
     setValidUntil('')
     setIsFormOpen(true)
@@ -85,9 +93,17 @@ export default function Quotes() {
     setCart(quote.items)
     setCustomerId(quote.customerId || 'none')
     setCustomerName(quote.customer || '')
+    setSellerId(quote.sellerId || 'none')
     setDiscount(quote.discount ? String(quote.discount) : '')
     setValidUntil(quote.validUntil ? new Date(quote.validUntil).toISOString().split('T')[0] : '')
     setIsFormOpen(true)
+  }
+
+  const handleDuplicate = (id: string) => {
+    const newQuote = duplicateQuote(id)
+    if (newQuote) {
+      handleEditQuote(newQuote)
+    }
   }
 
   const closeForm = () => {
@@ -119,6 +135,8 @@ export default function Quotes() {
   const handleSaveQuote = () => {
     if (cart.length === 0 || !customerName.trim() || !validUntil) return
 
+    const selectedSeller = sellers.find((s) => s.id === sellerId)
+
     const quoteData = {
       customerId: customerId !== 'none' ? customerId : undefined,
       customer: customerName.trim(),
@@ -126,16 +144,20 @@ export default function Quotes() {
       total: finalTotal,
       discount: discountVal > 0 ? discountVal : undefined,
       validUntil: new Date(validUntil).toISOString(),
+      sellerId: selectedSeller?.id,
+      sellerName: selectedSeller?.name,
+      sellerCode: selectedSeller?.code,
     }
 
     if (editingQuoteId) {
-      updateQuote(editingQuoteId, quoteData)
+      updateQuote(editingQuoteId, quoteData, true)
     } else {
       addQuote(quoteData)
-      const newQuoteObj = {
+      const newQuoteObj: Quote = {
         id: `ORC-${1000 + quotes.length + 1}`,
         date: new Date().toISOString(),
         status: 'Pendente' as const,
+        editHistory: [],
         ...quoteData,
       }
       setA4Quote(newQuoteObj)
@@ -155,6 +177,12 @@ export default function Quotes() {
     document.body.classList.add('printing-a4')
     window.print()
     setTimeout(() => document.body.classList.remove('printing-a4'), 500)
+  }
+
+  const printThermal = () => {
+    document.body.classList.add('printing-thermal')
+    window.print()
+    setTimeout(() => document.body.classList.remove('printing-thermal'), 500)
   }
 
   const openWhatsappDialog = (quote: Quote) => {
@@ -229,8 +257,24 @@ export default function Quotes() {
                 )}
               </div>
               <div className="space-y-2">
+                <Label>Vendedor Responsável</Label>
+                <Select value={sellerId} onValueChange={setSellerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhum / Não Informado</SelectItem>
+                    {sellers.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.code} - {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label>
-                  Validade do Orçamento <span className="text-destructive">*</span>
+                  Validade <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="date"
@@ -241,7 +285,7 @@ export default function Quotes() {
                 />
                 {!validUntil && <p className="text-[10px] text-destructive">Data é obrigatória</p>}
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <Label>Adicionar Produto</Label>
                 <Select onValueChange={addToCart} value="">
                   <SelectTrigger>
@@ -314,6 +358,32 @@ export default function Quotes() {
                   onChange={(e) => setDiscount(e.target.value)}
                 />
               </div>
+
+              {editingQuoteId &&
+              quotes.find((q) => q.id === editingQuoteId)?.editHistory?.length ? (
+                <div className="mt-4 pt-4 border-t">
+                  <h3 className="font-semibold text-sm mb-2 flex items-center gap-1">
+                    <History className="h-4 w-4" /> Histórico de Alterações
+                  </h3>
+                  <ScrollArea className="h-24">
+                    <div className="space-y-2">
+                      {quotes
+                        .find((q) => q.id === editingQuoteId)
+                        ?.editHistory?.map((log, idx) => (
+                          <div
+                            key={idx}
+                            className="flex justify-between items-center text-xs border-b pb-1"
+                          >
+                            <span className="font-medium">{log.userName}</span>
+                            <span className="text-muted-foreground">
+                              {new Date(log.timestamp).toLocaleString('pt-BR')}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              ) : null}
             </div>
             <div className="pt-4 border-t mt-4">
               <div className="flex justify-between items-center mb-4">
@@ -354,6 +424,7 @@ export default function Quotes() {
             <TableRow>
               <TableHead className="pl-6">Número / Data</TableHead>
               <TableHead>Cliente</TableHead>
+              <TableHead>Vendedor</TableHead>
               <TableHead className="text-right">Valor Estimado</TableHead>
               <TableHead className="text-center">Status</TableHead>
               <TableHead className="text-right pr-6">Ações Rápidas</TableHead>
@@ -377,48 +448,99 @@ export default function Quotes() {
                     </div>
                   </TableCell>
                   <TableCell className="font-medium">{q.customer}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {q.sellerName ? `${q.sellerCode} - ${q.sellerName}` : '-'}
+                  </TableCell>
                   <TableCell className="text-right font-medium">
                     {formatCurrency(q.total)}
                   </TableCell>
                   <TableCell className="text-center">
-                    <div className="flex flex-col items-center gap-1">
+                    {q.status === 'Convertido' || q.status === 'Cancelado' ? (
                       <Badge
-                        variant={q.status === 'Pendente' ? 'secondary' : 'default'}
+                        variant={q.status === 'Convertido' ? 'default' : 'secondary'}
                         className={q.status === 'Convertido' ? 'bg-emerald-500' : ''}
                       >
                         {q.status}
                       </Badge>
-                      {q.status === 'Pendente' && q.validUntil && (
-                        <span
-                          className={cn(
-                            'text-[10px] flex items-center font-medium',
-                            isExpired
-                              ? 'text-destructive'
-                              : isNearExpiration
-                                ? 'text-orange-500'
-                                : 'text-muted-foreground',
-                          )}
-                          title={
-                            isExpired
-                              ? 'Expirado'
-                              : isNearExpiration
-                                ? 'Expira em breve'
-                                : 'Validade'
-                          }
+                    ) : (
+                      <div className="flex flex-col items-center gap-1">
+                        <Select
+                          value={q.status}
+                          onValueChange={(val) => {
+                            if (val !== q.status) {
+                              updateQuote(q.id, { status: val as any }, true)
+                            }
+                          }}
                         >
-                          {isExpired ? (
-                            <AlertCircle className="h-3 w-3 mr-1" />
-                          ) : isNearExpiration ? (
-                            <Clock className="h-3 w-3 mr-1" />
-                          ) : null}
-                          Vence:{' '}
-                          {new Date(q.validUntil).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}
-                        </span>
-                      )}
-                    </div>
+                          <SelectTrigger
+                            className={cn(
+                              'w-[120px] h-8 text-xs font-semibold',
+                              q.status === 'Aprovado' &&
+                                'text-emerald-700 border-emerald-300 bg-emerald-50',
+                              q.status === 'Reprovado' &&
+                                'text-destructive border-destructive/30 bg-destructive/10',
+                            )}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Pendente">Pendente</SelectItem>
+                            <SelectItem value="Aprovado">Aprovado</SelectItem>
+                            <SelectItem value="Reprovado">Reprovado</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {q.status === 'Pendente' && q.validUntil && (
+                          <span
+                            className={cn(
+                              'text-[10px] flex items-center font-medium',
+                              isExpired
+                                ? 'text-destructive'
+                                : isNearExpiration
+                                  ? 'text-orange-500'
+                                  : 'text-muted-foreground',
+                            )}
+                            title={
+                              isExpired
+                                ? 'Expirado'
+                                : isNearExpiration
+                                  ? 'Expira em breve'
+                                  : 'Validade'
+                            }
+                          >
+                            {isExpired ? (
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                            ) : isNearExpiration ? (
+                              <Clock className="h-3 w-3 mr-1" />
+                            ) : null}
+                            Vence:{' '}
+                            {new Date(q.validUntil).toLocaleDateString('pt-BR', {
+                              timeZone: 'UTC',
+                            })}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="text-right pr-6">
-                    <div className="flex justify-end gap-1">
+                    <div className="flex justify-end gap-1 flex-wrap">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => handleDuplicate(q.id)}
+                        className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                        title="Duplicar Orçamento"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => setThermalQuote(q)}
+                        className="h-8 w-8 text-gray-600 hover:text-gray-700 hover:bg-gray-100"
+                        title="Impressão Térmica"
+                      >
+                        <Printer className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -446,7 +568,7 @@ export default function Quotes() {
                       >
                         <FileText className="h-4 w-4" />
                       </Button>
-                      {q.status === 'Pendente' && (
+                      {q.status !== 'Convertido' && q.status !== 'Cancelado' && (
                         <>
                           <Button
                             size="icon"
@@ -484,7 +606,7 @@ export default function Quotes() {
             })}
             {quotes.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   Nenhum orçamento registrado.
                 </TableCell>
               </TableRow>
@@ -527,6 +649,78 @@ export default function Quotes() {
             </Button>
             <Button onClick={handleConvert} className="bg-emerald-600 hover:bg-emerald-700">
               Confirmar Conversão
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Thermal Print Dialog */}
+      <Dialog open={!!thermalQuote} onOpenChange={(open) => !open && setThermalQuote(null)}>
+        <DialogContent className="sm:max-w-[400px] thermal-dialog-content">
+          <DialogHeader className="print:hidden hide-in-thermal">
+            <DialogTitle>Impressão Térmica - Orçamento</DialogTitle>
+          </DialogHeader>
+          <div className="thermal-receipt bg-white text-black p-4 text-xs font-mono border rounded-md">
+            <div className="text-center font-bold text-base mb-1">CONSTRUMASTER</div>
+            <div className="text-center mb-3 text-[10px]">CNPJ: 12.345.678/0001-90</div>
+            <div className="border-b border-dashed border-gray-400 mb-2 pb-2 text-[10px]">
+              <div className="text-center font-bold text-sm mb-1">ORÇAMENTO NÃO FISCAL</div>
+              <div>Nº: {thermalQuote?.id}</div>
+              <div>
+                Data: {thermalQuote ? new Date(thermalQuote.date).toLocaleString('pt-BR') : ''}
+              </div>
+              <div>
+                Validade:{' '}
+                {thermalQuote?.validUntil
+                  ? new Date(thermalQuote.validUntil).toLocaleDateString('pt-BR', {
+                      timeZone: 'UTC',
+                    })
+                  : '-'}
+              </div>
+              <div>Cliente: {thermalQuote?.customer}</div>
+              <div>
+                Vendedor: {thermalQuote?.sellerCode ? `${thermalQuote.sellerCode} - ` : ''}
+                {thermalQuote?.sellerName || '-'}
+              </div>
+            </div>
+            <table className="w-full mb-2 text-[10px]">
+              <thead>
+                <tr className="border-b border-dashed border-gray-400">
+                  <th className="text-left font-normal pb-1">Item</th>
+                  <th className="text-right font-normal pb-1">Qtd</th>
+                  <th className="text-right font-normal pb-1">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {thermalQuote?.items.map((item, i) => (
+                  <tr key={i}>
+                    <td className="truncate max-w-[120px] py-1">{item.product.name}</td>
+                    <td className="text-right py-1">{item.quantity}</td>
+                    <td className="text-right py-1">{formatCurrency(item.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="border-t border-dashed border-gray-400 pt-2 text-right">
+              {thermalQuote?.discount ? (
+                <div className="text-[10px] mb-1">
+                  Desconto: -{formatCurrency(thermalQuote.discount)}
+                </div>
+              ) : null}
+              <div className="font-bold text-sm mt-1">
+                TOTAL R$: {formatCurrency(thermalQuote?.total || 0)}
+              </div>
+            </div>
+            <div className="mt-4 pt-2 border-t border-dashed border-gray-400 text-center text-[10px]">
+              Este documento não é válido como cupom fiscal. Sujeito à confirmação de estoque.
+            </div>
+          </div>
+          <DialogFooter className="print:hidden hide-in-thermal">
+            <Button variant="outline" onClick={() => setThermalQuote(null)}>
+              Fechar
+            </Button>
+            <Button onClick={printThermal}>
+              <Printer className="mr-2 h-4 w-4" /> Imprimir (Térmica)
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -589,19 +783,32 @@ export default function Quotes() {
               </div>
 
               {/* Customer Info */}
-              <div className="mb-8 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">
-                  Dados do Cliente
-                </h3>
-                <p className="text-lg font-bold text-gray-900">
-                  {a4Quote?.customer || 'Consumidor Final'}
-                </p>
-                {a4Quote?.customerId && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    Documento (CPF/CNPJ):{' '}
-                    {customers.find((c) => c.id === a4Quote.customerId)?.document || '-'}
+              <div className="mb-8 flex gap-6">
+                <div className="flex-1 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">
+                    Dados do Cliente
+                  </h3>
+                  <p className="text-lg font-bold text-gray-900">
+                    {a4Quote?.customer || 'Consumidor Final'}
                   </p>
-                )}
+                  {a4Quote?.customerId && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      Documento (CPF/CNPJ):{' '}
+                      {customers.find((c) => c.id === a4Quote.customerId)?.document || '-'}
+                    </p>
+                  )}
+                </div>
+                <div className="w-1/3 bg-indigo-50/50 p-4 rounded-lg border border-indigo-100">
+                  <h3 className="text-sm font-bold text-indigo-800 uppercase tracking-wider mb-2">
+                    Vendedor(a)
+                  </h3>
+                  <p className="text-base font-bold text-indigo-950">
+                    {a4Quote?.sellerName || '-'}
+                  </p>
+                  <p className="text-sm text-indigo-700 mt-1">
+                    Código: {a4Quote?.sellerCode || '-'}
+                  </p>
+                </div>
               </div>
 
               {/* Items Table */}
