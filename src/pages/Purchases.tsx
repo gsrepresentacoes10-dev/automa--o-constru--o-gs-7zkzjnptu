@@ -1,9 +1,22 @@
 import { useState, useMemo } from 'react'
-import { useAppContext, PurchaseItem } from '@/context/AppContext'
-import { formatCurrency } from '@/lib/utils'
-import { Plus, ShoppingBag, Trash2, AlertTriangle, ScanLine, Camera } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { useAppContext } from '@/context/AppContext'
+import { formatCurrency, cn } from '@/lib/utils'
+import {
+  Search,
+  AlertTriangle,
+  TrendingUp,
+  CalendarClock,
+  ShoppingCart,
+  PackageOpen,
+} from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -12,286 +25,284 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Label } from '@/components/ui/label'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function Purchases() {
-  const { purchases, suppliers, products, addPurchase } = useAppContext()
-  const [isAdding, setIsAdding] = useState(false)
-  const [supplierId, setSupplierId] = useState('')
-  const [items, setItems] = useState<PurchaseItem[]>([])
+  const { products, sales } = useAppContext()
+  const [searchTerm, setSearchTerm] = useState('')
+  const [sortBy, setSortBy] = useState<'urgency' | 'name'>('urgency')
 
-  const [isScannerOpen, setIsScannerOpen] = useState(false)
-  const [barcodeSearch, setBarcodeSearch] = useState('')
+  const replenishmentData = useMemo(() => {
+    const now = new Date()
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
 
-  const criticalStockProducts = useMemo(() => {
-    return products.filter((p) => p.stock <= p.minStock)
-  }, [products])
+    return products.map((product) => {
+      const sold30d = sales.reduce((acc, sale) => {
+        if (new Date(sale.date) >= thirtyDaysAgo && sale.status !== 'Cancelado') {
+          const item = sale.items.find((i) => i.product.id === product.id)
+          return acc + (item ? item.quantity : 0)
+        }
+        return acc
+      }, 0)
 
-  const addItem = (productId: string) => {
-    const p = products.find((prod) => prod.id === productId)
-    if (!p) return
-    if (!items.find((i) => i.product.id === p.id)) {
-      setItems([{ product: p, quantity: 1, costPrice: p.costPrice }, ...items])
-    }
-  }
+      const dailyAvg = sold30d / 30
+      const daysOfCover = dailyAvg > 0 ? Math.floor(product.stock / dailyAvg) : Infinity
+      const targetStock = Math.ceil(Math.max(product.minStock, dailyAvg * 30))
+      const suggestedPurchase = Math.max(0, targetStock - product.stock)
+      const healthPercentage =
+        targetStock > 0 ? Math.min(100, (product.stock / targetStock) * 100) : 100
 
-  const handleBarcodeSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!barcodeSearch.trim()) return
+      let stockZeroDate: Date | null = null
+      if (daysOfCover !== Infinity && product.stock > 0) {
+        stockZeroDate = new Date(now.getTime() + daysOfCover * 24 * 60 * 60 * 1000)
+      }
 
-    const p = products.find(
-      (prod) =>
-        prod.barcode === barcodeSearch || prod.sku.toLowerCase() === barcodeSearch.toLowerCase(),
-    )
+      let status: 'critical' | 'warning' | 'good' = 'good'
+      if (product.stock <= 0 || daysOfCover <= 7) status = 'critical'
+      else if (product.stock <= product.minStock || daysOfCover <= 15) status = 'warning'
 
-    if (p) {
-      addItem(p.id)
-      setBarcodeSearch('')
-    }
-  }
-
-  const handleCameraScan = (barcode: string) => {
-    const p = products.find(
-      (prod) => prod.barcode === barcode || prod.sku.toLowerCase() === barcode.toLowerCase(),
-    )
-    if (p) {
-      addItem(p.id)
-    }
-  }
-
-  const updateItem = (id: string, field: keyof PurchaseItem, value: number) => {
-    setItems(items.map((i) => (i.product.id === id ? { ...i, [field]: value } : i)))
-  }
-
-  const total = items.reduce((acc, i) => acc + i.quantity * i.costPrice, 0)
-
-  const handleSave = () => {
-    if (!supplierId || items.length === 0) return
-    addPurchase({
-      supplierId,
-      supplierName: suppliers.find((s) => s.id === supplierId)?.name,
-      items,
-      total,
+      return {
+        ...product,
+        sold30d,
+        dailyAvg,
+        daysOfCover,
+        stockZeroDate,
+        suggestedPurchase,
+        healthPercentage,
+        status,
+        targetStock,
+      }
     })
-    setIsAdding(false)
-    setItems([])
-    setSupplierId('')
-  }
+  }, [products, sales])
+
+  const filteredAndSortedData = useMemo(() => {
+    let result = replenishmentData.filter(
+      (p) =>
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.barcode && p.barcode.includes(searchTerm)),
+    )
+
+    return result.sort((a, b) => {
+      if (sortBy === 'urgency') {
+        if (a.daysOfCover === b.daysOfCover) return a.stock - b.stock
+        return a.daysOfCover - b.daysOfCover
+      }
+      return a.name.localeCompare(b.name)
+    })
+  }, [replenishmentData, searchTerm, sortBy])
+
+  const summary = useMemo(() => {
+    return replenishmentData.reduce(
+      (acc, item) => {
+        if (item.status === 'critical') acc.critical++
+        if (item.suggestedPurchase > 0) {
+          acc.itemsToBuy++
+          acc.investment += item.suggestedPurchase * item.costPrice
+        }
+        return acc
+      },
+      { critical: 0, itemsToBuy: 0, investment: 0 },
+    )
+  }, [replenishmentData])
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Entrada de Mercadorias</h1>
-          <p className="text-muted-foreground">Registre compras e abasteça seu estoque.</p>
+          <h1 className="text-2xl font-bold tracking-tight">Planejamento de Reposição</h1>
+          <p className="text-muted-foreground">
+            Analise o fluxo de estoque, cobertura preditiva e sugestões de compra baseadas em
+            vendas.
+          </p>
         </div>
-        <Button onClick={() => setIsAdding(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Nova Entrada
-        </Button>
       </div>
 
-      {criticalStockProducts.length > 0 && (
-        <div className="bg-destructive/10 border border-destructive/20 text-destructive-foreground rounded-lg p-4 flex items-start gap-3 shadow-sm">
-          <AlertTriangle className="h-5 w-5 mt-0.5 text-destructive" />
-          <div>
-            <h3 className="font-semibold text-destructive">
-              Atenção: Produtos com Estoque Crítico
-            </h3>
-            <p className="text-sm opacity-90 mt-1 text-destructive/90">
-              Existem {criticalStockProducts.length} produtos abaixo ou no limite do estoque mínimo.
-              Considere reabastecê-los em sua próxima entrada.
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="bg-destructive/5 border-destructive/20 shadow-sm">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-medium text-destructive">Estoque Crítico</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">{summary.critical}</div>
+            <p className="text-xs text-destructive/80 mt-1">
+              Produtos zerados ou &lt; 7 dias de cobertura
             </p>
-          </div>
-        </div>
-      )}
-
-      <div className="bg-card border rounded-lg shadow-sm">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>Data</TableHead>
-              <TableHead>Fornecedor</TableHead>
-              <TableHead className="text-right">Itens</TableHead>
-              <TableHead className="text-right">Total da Nota</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {purchases.map((p) => (
-              <TableRow key={p.id}>
-                <TableCell className="font-medium">{p.id}</TableCell>
-                <TableCell>{new Date(p.date).toLocaleDateString('pt-BR')}</TableCell>
-                <TableCell className="flex items-center gap-2">
-                  <ShoppingBag className="h-4 w-4 text-muted-foreground" /> {p.supplierName}
-                </TableCell>
-                <TableCell className="text-right">
-                  {p.items.reduce((acc, i) => acc + i.quantity, 0)}
-                </TableCell>
-                <TableCell className="text-right font-medium">{formatCurrency(p.total)}</TableCell>
-              </TableRow>
-            ))}
-            {purchases.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                  Nenhuma entrada registrada.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+          </CardContent>
+        </Card>
+        <Card className="shadow-sm">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-medium">Sugestões de Compra</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{summary.itemsToBuy}</div>
+            <p className="text-xs text-muted-foreground mt-1">Itens precisando de reposição</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-primary/5 border-primary/20 shadow-sm">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm font-medium text-primary">
+              Investimento Sugerido
+            </CardTitle>
+            <TrendingUp className="h-4 w-4 text-primary" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">
+              {formatCurrency(summary.investment)}
+            </div>
+            <p className="text-xs text-primary/80 mt-1">
+              Para atingir a cobertura ideal de 30 dias
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
-      <Dialog open={isAdding} onOpenChange={setIsAdding}>
-        <DialogContent className="sm:max-w-[700px]">
-          <DialogHeader>
-            <DialogTitle>Registrar Compra (Entrada de Estoque)</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label>Fornecedor</Label>
-              <Select value={supplierId} onValueChange={setSupplierId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Buscar por Código (Leitor USB)</Label>
-                <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
-                  <div className="relative flex-1">
-                    <ScanLine className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Escanear..."
-                      className="pl-9"
-                      value={barcodeSearch}
-                      onChange={(e) => setBarcodeSearch(e.target.value)}
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setIsScannerOpen(true)}
-                  >
-                    <Camera className="h-4 w-4" />
-                  </Button>
-                </form>
-              </div>
-              <div className="space-y-2">
-                <Label>Ou Adicionar Manualmente</Label>
-                <Select onValueChange={addItem} value="">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um produto..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name} (Estoque: {p.stock})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {items.length > 0 && (
-              <ScrollArea className="h-[250px] border rounded-md p-2">
-                <div className="space-y-3">
-                  {items.map((i) => (
-                    <div
-                      key={i.product.id}
-                      className="flex items-center gap-4 bg-muted/30 p-2 rounded-lg border"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{i.product.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Atual: {i.product.stock} {i.product.unit}
-                        </p>
-                      </div>
-                      <div className="w-24">
-                        <Label className="text-xs">Qtd</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={i.quantity}
-                          onChange={(e) =>
-                            updateItem(i.product.id, 'quantity', Number(e.target.value))
-                          }
-                          className="h-8"
-                        />
-                      </div>
-                      <div className="w-32">
-                        <Label className="text-xs">Custo (R$)</Label>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={i.costPrice}
-                          onChange={(e) =>
-                            updateItem(i.product.id, 'costPrice', Number(e.target.value))
-                          }
-                          className="h-8"
-                        />
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive mt-4"
-                        onClick={() => setItems(items.filter((x) => x.product.id !== i.product.id))}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
-
-            <div className="flex justify-between items-center pt-4 border-t">
-              <span className="font-semibold">Total da Nota</span>
-              <span className="text-xl font-bold text-primary">{formatCurrency(total)}</span>
-            </div>
+      <div className="bg-card border rounded-lg shadow-sm overflow-hidden flex flex-col">
+        <div className="p-4 border-b bg-muted/20 flex flex-col sm:flex-row gap-4 items-center justify-between">
+          <div className="relative w-full max-w-sm">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar produto ou SKU..."
+              className="pl-9"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAdding(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSave} disabled={!supplierId || items.length === 0}>
-              Confirmar Entrada
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">
+              Ordenar por:
+            </span>
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'urgency' | 'name')}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="urgency">Urgência de Reposição</SelectItem>
+                <SelectItem value="name">Nome (A-Z)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
 
-      <BarcodeScannerModal
-        open={isScannerOpen}
-        onOpenChange={setIsScannerOpen}
-        onScan={handleCameraScan}
-      />
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Produto</TableHead>
+                <TableHead>Saúde do Estoque</TableHead>
+                <TableHead className="text-center">Vendas (30d) / Média</TableHead>
+                <TableHead className="text-center">Cobertura (Dias)</TableHead>
+                <TableHead className="text-center">Fim Estimado</TableHead>
+                <TableHead className="text-center">Compra Sugerida</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredAndSortedData.map((item) => (
+                <TableRow key={item.id}>
+                  <TableCell>
+                    <div className="font-medium">{item.name}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">SKU: {item.sku}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1 w-full max-w-[130px]">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="font-medium text-foreground">Atual: {item.stock}</span>
+                        <span className="text-muted-foreground">Alvo: {item.targetStock}</span>
+                      </div>
+                      <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className={cn(
+                            'h-full transition-all',
+                            item.status === 'critical'
+                              ? 'bg-destructive'
+                              : item.status === 'warning'
+                                ? 'bg-amber-500'
+                                : 'bg-emerald-500',
+                          )}
+                          style={{ width: `${item.healthPercentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <div className="font-medium">{item.sold30d} un</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {item.dailyAvg.toFixed(1)} un/dia
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {item.daysOfCover === Infinity ? (
+                      <Badge variant="outline" className="text-muted-foreground font-normal">
+                        Sem vendas
+                      </Badge>
+                    ) : (
+                      <Badge
+                        variant={item.status === 'critical' ? 'destructive' : 'outline'}
+                        className={cn(
+                          item.status === 'warning' &&
+                            'bg-amber-100 text-amber-800 border-amber-200',
+                          item.status === 'good' &&
+                            'bg-emerald-50 text-emerald-700 border-emerald-200 font-normal',
+                        )}
+                      >
+                        {item.daysOfCover} dias
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {item.stockZeroDate ? (
+                      <div className="flex items-center justify-center gap-1.5 text-sm">
+                        <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span
+                          className={
+                            item.status === 'critical' ? 'text-destructive font-medium' : ''
+                          }
+                        >
+                          {item.stockZeroDate.toLocaleDateString('pt-BR')}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {item.suggestedPurchase > 0 ? (
+                      <div className="flex items-center justify-center">
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            'text-sm py-1',
+                            item.status === 'critical'
+                              ? 'bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/20'
+                              : 'bg-primary/10 text-primary hover:bg-primary/20 border-primary/20',
+                          )}
+                        >
+                          <PackageOpen className="h-3.5 w-3.5 mr-1.5" />+ {item.suggestedPurchase}{' '}
+                          un
+                        </Badge>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-sm flex items-center justify-center">
+                        Estoque OK
+                      </span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {filteredAndSortedData.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    Nenhum produto encontrado.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
     </div>
   )
 }
