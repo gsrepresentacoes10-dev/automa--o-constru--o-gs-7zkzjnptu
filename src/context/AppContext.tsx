@@ -66,6 +66,8 @@ export interface Sale {
   sellerId?: string
   sellerName?: string
   sellerCode?: string
+  whatsappReminder?: boolean
+  whatsappReminderDate?: string
 }
 
 export interface PreSale {
@@ -119,6 +121,8 @@ export interface Quote {
   sellerName?: string
   sellerCode?: string
   editHistory?: QuoteEditLog[]
+  whatsappReminder?: boolean
+  whatsappReminderDate?: string
 }
 
 interface AppContextType {
@@ -138,6 +142,7 @@ interface AppContextType {
   sales: Sale[]
   setSales: (sales: Sale[]) => void
   addSale: (sale: Omit<Sale, 'id' | 'date' | 'status'>) => Sale
+  updateSale: (id: string, saleData: Partial<Sale>) => void
   markSaleAsPaid: (id: string) => void
   preSales: PreSale[]
   addPreSale: (preSale: Omit<PreSale, 'id' | 'date'>) => void
@@ -157,6 +162,7 @@ interface AppContextType {
   duplicateQuote: (id: string) => Quote | null
   convertQuoteToSale: (quoteId: string, paymentMethod: PaymentMethod) => void
   convertQuoteToPreSale: (quoteId: string) => void
+  processOnlinePayment: (type: 'quote' | 'sale', id: string, method: PaymentMethod) => void
 }
 
 const initialUsers: User[] = [
@@ -300,6 +306,8 @@ const initialSales: Sale[] = [
     dueDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     sellerId: '3',
     sellerName: 'Pedro Vendedor',
+    whatsappReminder: true,
+    whatsappReminderDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
   },
   {
     id: 'V-1003',
@@ -343,7 +351,7 @@ const initialQuotes: Quote[] = [
   {
     id: 'ORC-1001',
     date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    validUntil: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    validUntil: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
     customerId: '1',
     customer: 'Construtora Alpha Ltda',
     items: [{ product: initialProducts[3], quantity: 50, total: 2995 }],
@@ -353,6 +361,8 @@ const initialQuotes: Quote[] = [
     sellerCode: 'V001',
     sellerName: 'Pedro Vendedor',
     editHistory: [],
+    whatsappReminder: true,
+    whatsappReminderDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
   },
   {
     id: 'ORC-1002',
@@ -623,8 +633,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return sale
   }
 
+  const updateSale = (id: string, saleData: Partial<Sale>) => {
+    setSales((prev) => prev.map((s) => (s.id === id ? { ...s, ...saleData } : s)))
+  }
+
   const markSaleAsPaid = (id: string) => {
     setSales((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'Pago' } : s)))
+  }
+
+  const processOnlinePayment = (type: 'quote' | 'sale', id: string, method: PaymentMethod) => {
+    if (type === 'quote') {
+      const quote = quotes.find((q) => q.id === id)
+      if (!quote) return
+      setQuotes((prev) => prev.map((q) => (q.id === id ? { ...q, status: 'Aprovado' } : q)))
+      addSale({
+        customerId: quote.customerId,
+        customer: quote.customer,
+        items: quote.items,
+        total: quote.total,
+        discount: quote.discount,
+        paymentMethod: method,
+        sellerId: quote.sellerId,
+        sellerName: quote.sellerName,
+        sellerCode: quote.sellerCode,
+      })
+    } else if (type === 'sale') {
+      setSales((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, status: 'Pago', paymentMethod: method } : s)),
+      )
+    }
   }
 
   return (
@@ -646,6 +683,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         sales,
         setSales,
         addSale,
+        updateSale,
         markSaleAsPaid,
         preSales,
         addPreSale,
@@ -665,6 +703,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         duplicateQuote,
         convertQuoteToSale,
         convertQuoteToPreSale,
+        processOnlinePayment,
       }}
     >
       {children}

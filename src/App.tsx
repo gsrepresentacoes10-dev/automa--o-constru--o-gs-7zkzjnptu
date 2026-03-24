@@ -17,6 +17,7 @@ import Purchases from './pages/Purchases'
 import Quotes from './pages/Quotes'
 import Sellers from './pages/Sellers'
 import SellerPerformance from './pages/SellerPerformance'
+import Checkout from './pages/Checkout'
 import NotFound from './pages/NotFound'
 
 const App = () => (
@@ -26,6 +27,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <Routes>
+          <Route path="/checkout/:type/:id" element={<Checkout />} />
           <Route element={<Layout />}>
             <Route path="/" element={<Index />} />
             <Route path="/estoque" element={<Inventory />} />

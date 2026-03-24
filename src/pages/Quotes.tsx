@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useAppContext, SaleItem, PaymentMethod, Quote } from '@/context/AppContext'
 import { formatCurrency, cn } from '@/lib/utils'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import {
   FileText,
   Plus,
@@ -16,6 +18,9 @@ import {
   Copy,
   Printer,
   History,
+  Link as LinkIcon,
+  BellRing,
+  CalendarIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,6 +50,11 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { CustomerCombobox } from '@/components/CustomerCombobox'
+import { Switch } from '@/components/ui/switch'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { toast } from '@/hooks/use-toast'
 
 export default function Quotes() {
   const {
@@ -72,6 +82,9 @@ export default function Quotes() {
   const [discount, setDiscount] = useState('')
   const [validUntil, setValidUntil] = useState('')
 
+  const [whatsappReminder, setWhatsappReminder] = useState(false)
+  const [whatsappReminderDate, setWhatsappReminderDate] = useState<Date | undefined>(undefined)
+
   const [a4Quote, setA4Quote] = useState<Quote | null>(null)
   const [thermalQuote, setThermalQuote] = useState<Quote | null>(null)
   const [whatsappQuote, setWhatsappQuote] = useState<Quote | null>(null)
@@ -85,6 +98,8 @@ export default function Quotes() {
     setSellerId('none')
     setDiscount('')
     setValidUntil('')
+    setWhatsappReminder(false)
+    setWhatsappReminderDate(undefined)
     setIsFormOpen(true)
   }
 
@@ -96,6 +111,10 @@ export default function Quotes() {
     setSellerId(quote.sellerId || 'none')
     setDiscount(quote.discount ? String(quote.discount) : '')
     setValidUntil(quote.validUntil ? new Date(quote.validUntil).toISOString().split('T')[0] : '')
+    setWhatsappReminder(quote.whatsappReminder || false)
+    setWhatsappReminderDate(
+      quote.whatsappReminderDate ? new Date(quote.whatsappReminderDate) : undefined,
+    )
     setIsFormOpen(true)
   }
 
@@ -134,6 +153,14 @@ export default function Quotes() {
 
   const handleSaveQuote = () => {
     if (cart.length === 0 || !customerName.trim() || !validUntil) return
+    if (whatsappReminder && !whatsappReminderDate) {
+      toast({
+        variant: 'destructive',
+        title: 'Data Incompleta',
+        description: 'Selecione a data para o envio do lembrete via WhatsApp.',
+      })
+      return
+    }
 
     const selectedSeller = sellers.find((s) => s.id === sellerId)
 
@@ -147,6 +174,8 @@ export default function Quotes() {
       sellerId: selectedSeller?.id,
       sellerName: selectedSeller?.name,
       sellerCode: selectedSeller?.code,
+      whatsappReminder,
+      whatsappReminderDate: whatsappReminderDate ? whatsappReminderDate.toISOString() : undefined,
     }
 
     if (editingQuoteId) {
@@ -173,6 +202,15 @@ export default function Quotes() {
     }
   }
 
+  const copyPaymentLink = (id: string) => {
+    const link = `${window.location.origin}/checkout/quote/${id}`
+    navigator.clipboard.writeText(link)
+    toast({
+      title: 'Link Copiado',
+      description: 'O link de pagamento do orçamento foi copiado para a área de transferência.',
+    })
+  }
+
   const printA4PDF = () => {
     document.body.classList.add('printing-a4')
     window.print()
@@ -196,16 +234,18 @@ export default function Quotes() {
   }
 
   const sendWhatsappMessage = (quote: Quote, phone: string) => {
-    const text = `Olá${quote.customer && quote.customer !== 'Consumidor Final' ? ` ${quote.customer}` : ''}, aqui é da ConstruMaster.\n\nSegue o resumo do seu orçamento *#${quote.id}*.\n*Valor Total Estimado:* ${formatCurrency(quote.total)}\n*Validade:* ${quote.validUntil ? new Date(quote.validUntil).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'N/A'}\n\nO documento completo em PDF pode ser solicitado ou retirado na loja.\nQualquer dúvida, estamos à disposição!`
+    const link = `${window.location.origin}/checkout/quote/${quote.id}`
+    const text = `Olá${quote.customer && quote.customer !== 'Consumidor Final' ? ` ${quote.customer}` : ''}, aqui é da ConstruMaster.\n\nSegue o resumo do seu orçamento *#${quote.id}*.\n*Valor Total Estimado:* ${formatCurrency(quote.total)}\n*Validade:* ${quote.validUntil ? new Date(quote.validUntil).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'N/A'}\n\n💳 *Você pode aprovar e pagar diretamente pelo link abaixo:*\n${link}\n\nO documento completo em PDF pode ser solicitado ou retirado na loja. Qualquer dúvida, estamos à disposição!`
     const cleanPhone = phone.replace(/\D/g, '')
     window.open(`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank')
     setWhatsappQuote(null)
   }
 
   const sendEmail = (quote: Quote) => {
+    const link = `${window.location.origin}/checkout/quote/${quote.id}`
     const subject = encodeURIComponent(`Orçamento ConstruMaster #${quote.id}`)
     const body = encodeURIComponent(
-      `Olá ${quote.customer || 'Cliente'},\n\nSegue o resumo do seu orçamento:\n\nNº do Orçamento: ${quote.id}\nValor Total: ${formatCurrency(quote.total)}\nValidade: ${quote.validUntil ? new Date(quote.validUntil).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'N/A'}\n\nFicamos à disposição para qualquer dúvida.\n\nAtenciosamente,\nEquipe ConstruMaster`,
+      `Olá ${quote.customer || 'Cliente'},\n\nSegue o resumo do seu orçamento:\n\nNº do Orçamento: ${quote.id}\nValor Total: ${formatCurrency(quote.total)}\nValidade: ${quote.validUntil ? new Date(quote.validUntil).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'N/A'}\n\nPara aprovar e realizar o pagamento online, acesse o link seguro: ${link}\n\nFicamos à disposição para qualquer dúvida.\n\nAtenciosamente,\nEquipe ConstruMaster`,
     )
     window.location.href = `mailto:?subject=${subject}&body=${body}`
   }
@@ -285,6 +325,61 @@ export default function Quotes() {
                 />
                 {!validUntil && <p className="text-[10px] text-destructive">Data é obrigatória</p>}
               </div>
+
+              {/* Automation Toggle */}
+              <div className="space-y-3 md:col-span-2 p-4 bg-muted/40 rounded-lg border border-primary/10">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-base font-semibold text-primary">Automação</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Ativar Lembrete de Vencimento via WhatsApp
+                    </p>
+                  </div>
+                  <Switch checked={whatsappReminder} onCheckedChange={setWhatsappReminder} />
+                </div>
+                {whatsappReminder && (
+                  <div className="pt-3 border-t animate-in fade-in slide-in-from-top-2">
+                    <Label className="mb-2 block">
+                      Programar Data de Envio <span className="text-destructive">*</span>
+                    </Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={'outline'}
+                          className={cn(
+                            'w-full sm:w-[240px] justify-start text-left font-normal',
+                            !whatsappReminderDate && 'text-muted-foreground',
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {whatsappReminderDate ? (
+                            format(whatsappReminderDate, 'PPP', { locale: ptBR })
+                          ) : (
+                            <span>Selecione a data</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={whatsappReminderDate}
+                          onSelect={setWhatsappReminderDate}
+                          initialFocus
+                          disabled={(date) =>
+                            date < new Date(new Date().setHours(0, 0, 0, 0)) ||
+                            (validUntil && date > new Date(validUntil))
+                          }
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      O lembrete com link de pagamento será disparado automaticamente na data
+                      escolhida.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2 md:col-span-2">
                 <Label>Adicionar Produto</Label>
                 <Select onValueChange={addToCart} value="">
@@ -438,11 +533,25 @@ export default function Quotes() {
                 q.validUntil &&
                 !isExpired &&
                 new Date(q.validUntil).getTime() - new Date().getTime() <= 48 * 60 * 60 * 1000
+              const isPending = q.status === 'Pendente'
 
               return (
                 <TableRow key={q.id}>
                   <TableCell className="pl-6 font-medium">
-                    <div>{q.id}</div>
+                    <div className="flex items-center gap-1.5">
+                      {q.id}
+                      {q.whatsappReminder && q.whatsappReminderDate && isPending && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <BellRing className="h-3 w-3 text-emerald-500 mb-0.5" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            Lembrete automático ativo para:{' '}
+                            {format(new Date(q.whatsappReminderDate), 'dd/MM/yyyy')}
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground font-normal">
                       {new Date(q.date).toLocaleDateString('pt-BR')}
                     </div>
@@ -455,10 +564,14 @@ export default function Quotes() {
                     {formatCurrency(q.total)}
                   </TableCell>
                   <TableCell className="text-center">
-                    {q.status === 'Convertido' || q.status === 'Cancelado' ? (
+                    {!isPending ? (
                       <Badge
                         variant={q.status === 'Convertido' ? 'default' : 'secondary'}
-                        className={q.status === 'Convertido' ? 'bg-emerald-500' : ''}
+                        className={
+                          q.status === 'Convertido' || q.status === 'Aprovado'
+                            ? 'bg-emerald-500 hover:bg-emerald-600'
+                            : ''
+                        }
                       >
                         {q.status}
                       </Badge>
@@ -489,7 +602,7 @@ export default function Quotes() {
                             <SelectItem value="Reprovado">Reprovado</SelectItem>
                           </SelectContent>
                         </Select>
-                        {q.status === 'Pendente' && q.validUntil && (
+                        {q.validUntil && (
                           <span
                             className={cn(
                               'text-[10px] flex items-center font-medium',
@@ -523,6 +636,17 @@ export default function Quotes() {
                   </TableCell>
                   <TableCell className="text-right pr-6">
                     <div className="flex justify-end gap-1 flex-wrap">
+                      {isPending && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => copyPaymentLink(q.id)}
+                          className="h-8 w-8 text-sky-600 hover:text-sky-700 hover:bg-sky-50"
+                          title="Copiar Link de Pagamento Checkout"
+                        >
+                          <LinkIcon className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         size="icon"
                         variant="ghost"
@@ -546,7 +670,7 @@ export default function Quotes() {
                         size="icon"
                         className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-8 w-8"
                         onClick={() => sendEmail(q)}
-                        title="Enviar por Email"
+                        title="Enviar por Email com Link"
                       >
                         <Mail className="h-4 w-4" />
                       </Button>
@@ -555,7 +679,7 @@ export default function Quotes() {
                         size="icon"
                         className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-8 w-8"
                         onClick={() => openWhatsappDialog(q)}
-                        title="Enviar via WhatsApp"
+                        title="Enviar via WhatsApp com Link"
                       >
                         <MessageCircle className="h-4 w-4" />
                       </Button>
@@ -568,7 +692,7 @@ export default function Quotes() {
                       >
                         <FileText className="h-4 w-4" />
                       </Button>
-                      {q.status !== 'Convertido' && q.status !== 'Cancelado' && (
+                      {isPending && (
                         <>
                           <Button
                             size="icon"

@@ -1,7 +1,19 @@
 import { useState, useMemo } from 'react'
 import { useAppContext } from '@/context/AppContext'
-import { formatCurrency } from '@/lib/utils'
-import { Landmark, CheckCircle2, Search, AlertCircle } from 'lucide-react'
+import { formatCurrency, cn } from '@/lib/utils'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import {
+  Landmark,
+  CheckCircle2,
+  Search,
+  AlertCircle,
+  Link as LinkIcon,
+  MessageCircle,
+  BellRing,
+  CalendarIcon,
+  Settings,
+} from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -22,13 +34,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Switch } from '@/components/ui/switch'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { toast } from '@/hooks/use-toast'
 
 export default function Receivables() {
-  const { sales, markSaleAsPaid } = useAppContext()
+  const { sales, updateSale, markSaleAsPaid, customers } = useAppContext()
   const [statusFilter, setStatusFilter] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+
+  const [configuringSaleId, setConfiguringSaleId] = useState<string | null>(null)
+  const [reminderActive, setReminderActive] = useState(false)
+  const [reminderDate, setReminderDate] = useState<Date | undefined>(undefined)
 
   const creditSales = useMemo(
     () => sales.filter((s) => s.paymentMethod === 'Venda a Prazo'),
@@ -78,6 +105,61 @@ export default function Receivables() {
     })
   }
 
+  const copyPaymentLink = (id: string) => {
+    const link = `${window.location.origin}/checkout/sale/${id}`
+    navigator.clipboard.writeText(link)
+    toast({
+      title: 'Link Copiado',
+      description: 'O link de pagamento da cobrança foi copiado.',
+    })
+  }
+
+  const openConfigDialog = (saleId: string) => {
+    const sale = sales.find((s) => s.id === saleId)
+    if (!sale) return
+    setReminderActive(sale.whatsappReminder || false)
+    setReminderDate(sale.whatsappReminderDate ? new Date(sale.whatsappReminderDate) : undefined)
+    setConfiguringSaleId(saleId)
+  }
+
+  const handleSaveConfig = () => {
+    if (configuringSaleId) {
+      if (reminderActive && !reminderDate) {
+        toast({
+          variant: 'destructive',
+          title: 'Data Incompleta',
+          description: 'Selecione a data para a notificação.',
+        })
+        return
+      }
+      updateSale(configuringSaleId, {
+        whatsappReminder: reminderActive,
+        whatsappReminderDate: reminderDate ? reminderDate.toISOString() : undefined,
+      })
+      toast({ title: 'Configuração Salva', description: 'Notificação de cobrança atualizada.' })
+    }
+    setConfiguringSaleId(null)
+  }
+
+  const sendWhatsappBilling = (saleId: string) => {
+    const sale = sales.find((s) => s.id === saleId)
+    if (!sale) return
+    const customer = customers.find((c) => c.id === sale.customerId)
+    const link = `${window.location.origin}/checkout/sale/${sale.id}`
+    const text = `Olá${sale.customer ? ` ${sale.customer}` : ''}, informamos que seu pedido *#${sale.id}* no valor de ${formatCurrency(sale.total)} tem o vencimento programado para ${sale.dueDate ? new Date(sale.dueDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : 'N/A'}.\n\n💳 *Para sua comodidade, você pode realizar o pagamento diretamente pelo link:* \n${link}\n\nSe já efetuou o pagamento, por favor, desconsidere esta mensagem.`
+    const cleanPhone = (customer?.phone || '').replace(/\D/g, '')
+
+    if (cleanPhone) {
+      window.open(`https://wa.me/55${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank')
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Sem telefone',
+        description: 'O cliente não possui um telefone cadastrado para WhatsApp.',
+      })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -86,7 +168,7 @@ export default function Receivables() {
             Relatório de Inadimplência / Contas a Receber
           </h1>
           <p className="text-muted-foreground">
-            Gerencie pagamentos pendentes, atrasos e recebimentos.
+            Gerencie pagamentos pendentes, ative cobranças automáticas e receba online.
           </p>
         </div>
       </div>
@@ -166,7 +248,7 @@ export default function Receivables() {
                 <TableHead>Vencimento</TableHead>
                 <TableHead className="text-right">Valor Total</TableHead>
                 <TableHead className="text-center">Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead className="text-right">Ações Rápidas</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -178,7 +260,22 @@ export default function Receivables() {
 
                 return (
                   <TableRow key={sale.id} className={isOverdue ? 'bg-destructive/5' : ''}>
-                    <TableCell className="font-medium">{sale.customer}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {sale.customer}
+                        {sale.whatsappReminder && sale.whatsappReminderDate && isPending && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <BellRing className="h-3 w-3 text-emerald-500" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Cobrança programada para:{' '}
+                              {format(new Date(sale.whatsappReminderDate), 'dd/MM/yyyy')}
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{sale.id}</TableCell>
                     <TableCell>{new Date(sale.date).toLocaleDateString('pt-BR')}</TableCell>
                     <TableCell
@@ -204,18 +301,47 @@ export default function Receivables() {
                     </TableCell>
                     <TableCell className="text-right">
                       {isPending ? (
-                        <Button
-                          size="sm"
-                          variant={isOverdue ? 'default' : 'outline'}
-                          onClick={() => handleMarkAsPaid(sale.id, sale.customer)}
-                          className={
-                            isOverdue
-                              ? 'bg-destructive hover:bg-destructive/90 text-white'
-                              : 'hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
-                          }
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-2" /> Baixar
-                        </Button>
+                        <div className="flex justify-end items-center gap-1">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => openConfigDialog(sale.id)}
+                            className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                            title="Configurar Notificação"
+                          >
+                            <Settings className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => sendWhatsappBilling(sale.id)}
+                            className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                            title="Cobrar via WhatsApp"
+                          >
+                            <MessageCircle className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => copyPaymentLink(sale.id)}
+                            className="h-8 w-8 text-sky-600 hover:text-sky-700 hover:bg-sky-50"
+                            title="Link de Pagamento"
+                          >
+                            <LinkIcon className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={isOverdue ? 'default' : 'outline'}
+                            onClick={() => handleMarkAsPaid(sale.id, sale.customer)}
+                            className={
+                              isOverdue
+                                ? 'bg-destructive hover:bg-destructive/90 text-white ml-2'
+                                : 'hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 ml-2'
+                            }
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-1" /> Baixar
+                          </Button>
+                        </div>
                       ) : (
                         <span className="text-xs text-emerald-600 font-medium flex items-center justify-end gap-1">
                           <CheckCircle2 className="h-3 w-3" /> Liquidado
@@ -237,6 +363,71 @@ export default function Receivables() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={!!configuringSaleId}
+        onOpenChange={(open) => !open && setConfiguringSaleId(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Configurar Cobrança Automática</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-6">
+            <div className="flex items-center justify-between border-b pb-4">
+              <div className="space-y-0.5">
+                <Label className="text-base font-semibold">Notificação via WhatsApp</Label>
+                <p className="text-xs text-muted-foreground max-w-[280px]">
+                  Ativar o envio automático do link de pagamento para cobrança desta parcela.
+                </p>
+              </div>
+              <Switch checked={reminderActive} onCheckedChange={setReminderActive} />
+            </div>
+
+            {reminderActive && (
+              <div className="space-y-3 animate-in fade-in zoom-in duration-300">
+                <Label>
+                  Programar Data de Envio <span className="text-destructive">*</span>
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={'outline'}
+                      className={cn(
+                        'w-full justify-start text-left font-normal',
+                        !reminderDate && 'text-muted-foreground',
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {reminderDate ? (
+                        format(reminderDate, 'PPP', { locale: ptBR })
+                      ) : (
+                        <span>Selecione a data de envio</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={reminderDate}
+                      onSelect={setReminderDate}
+                      initialFocus
+                      disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfiguringSaleId(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveConfig} className="bg-indigo-600 hover:bg-indigo-700">
+              Salvar Configurações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
