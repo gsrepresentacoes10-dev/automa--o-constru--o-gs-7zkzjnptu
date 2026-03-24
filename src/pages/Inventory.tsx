@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react'
-import { useAppContext } from '@/context/AppContext'
+import { useAppContext, Product, MovementType } from '@/context/AppContext'
 import { formatCurrency } from '@/lib/utils'
-import { Search, AlertTriangle, Camera, AlertOctagon } from 'lucide-react'
+import { Search, AlertTriangle, Camera, AlertOctagon, History, Plus } from 'lucide-react'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -15,13 +17,42 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
 
 export default function Inventory() {
-  const { products } = useAppContext()
+  const { products, stockMovements, addManualStockAdjustment } = useAppContext()
   const [searchTerm, setSearchTerm] = useState('')
   const [showCriticalOnly, setShowCriticalOnly] = useState(false)
   const [isScannerOpen, setIsScannerOpen] = useState(false)
+
+  const [selectedProductHistory, setSelectedProductHistory] = useState<Product | null>(null)
+  const [isAdjustmentOpen, setIsAdjustmentOpen] = useState(false)
+  const [adjustmentType, setAdjustmentType] = useState<MovementType>('Entrada')
+  const [adjustmentQuantity, setAdjustmentQuantity] = useState('')
+  const [adjustmentReason, setAdjustmentReason] = useState('')
 
   const sortedProducts = useMemo(() => {
     return [...products].sort((a, b) => a.name.localeCompare(b.name))
@@ -39,14 +70,40 @@ export default function Inventory() {
     return matchesSearch
   })
 
+  const currentProductForHistory = useMemo(() => {
+    if (!selectedProductHistory) return null
+    return products.find((p) => p.id === selectedProductHistory.id) || selectedProductHistory
+  }, [selectedProductHistory, products])
+
+  const productMovements = useMemo(() => {
+    if (!selectedProductHistory) return []
+    return stockMovements
+      .filter((m) => m.productId === selectedProductHistory.id)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  }, [stockMovements, selectedProductHistory])
+
   const handleCameraScan = (barcode: string) => {
     setSearchTerm(barcode)
   }
 
   const handleBarcodeSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // For USB scanners, the default form submission is prevented here.
-    // The searchTerm state will already have the rapid input from the scanner.
+  }
+
+  const handleAdjustmentSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedProductHistory || !adjustmentQuantity || !adjustmentReason) return
+
+    addManualStockAdjustment(
+      selectedProductHistory.id,
+      adjustmentType,
+      Number(adjustmentQuantity),
+      adjustmentReason,
+    )
+
+    setIsAdjustmentOpen(false)
+    setAdjustmentQuantity('')
+    setAdjustmentReason('')
   }
 
   return (
@@ -55,7 +112,7 @@ export default function Inventory() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Consulta de Estoque</h1>
           <p className="text-muted-foreground">
-            Monitore os materiais disponíveis e acompanhe alertas de estoque.
+            Monitore os materiais disponíveis, acompanhe alertas e acesse o Kardex.
           </p>
         </div>
       </div>
@@ -107,6 +164,7 @@ export default function Inventory() {
                 <TableHead className="text-right">Preço Venda</TableHead>
                 <TableHead className="text-center">Estoque Atual</TableHead>
                 <TableHead className="text-center">Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -166,12 +224,22 @@ export default function Inventory() {
                         <span className="text-emerald-600 text-sm font-medium">Normal</span>
                       )}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedProductHistory(product)}
+                        className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                      >
+                        <History className="h-4 w-4 mr-2" /> Histórico
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 )
               })}
               {filteredProducts.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     Nenhum produto encontrado com os filtros atuais.
                   </TableCell>
                 </TableRow>
@@ -180,6 +248,156 @@ export default function Inventory() {
           </Table>
         </div>
       </div>
+
+      <Sheet
+        open={!!selectedProductHistory}
+        onOpenChange={(open) => !open && setSelectedProductHistory(null)}
+      >
+        <SheetContent className="sm:max-w-[700px] w-[90vw] flex flex-col gap-0 p-0">
+          <SheetHeader className="p-6 pb-4 border-b">
+            <SheetTitle>Histórico de Movimentações (Kardex)</SheetTitle>
+            <SheetDescription>
+              Produto: <strong className="text-foreground">{currentProductForHistory?.name}</strong>{' '}
+              (SKU: {currentProductForHistory?.sku})
+            </SheetDescription>
+          </SheetHeader>
+          <div className="p-6 flex-1 flex flex-col overflow-hidden gap-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="bg-muted px-4 py-2 rounded-md border flex items-center gap-2">
+                <span className="text-sm font-medium text-muted-foreground">Saldo Atual:</span>
+                <span className="text-lg font-bold">
+                  {currentProductForHistory?.stock}{' '}
+                  <span className="text-xs text-muted-foreground">
+                    {currentProductForHistory?.unit}
+                  </span>
+                </span>
+              </div>
+              <Button
+                onClick={() => setIsAdjustmentOpen(true)}
+                className="bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto"
+              >
+                <Plus className="h-4 w-4 mr-2" /> Ajuste Manual
+              </Button>
+            </div>
+
+            <div className="flex-1 border rounded-lg overflow-hidden flex flex-col">
+              <ScrollArea className="flex-1 bg-card">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-muted/95 backdrop-blur z-10">
+                    <TableRow>
+                      <TableHead>Data/Hora</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead className="text-right">Quantidade</TableHead>
+                      <TableHead>Origem/Motivo</TableHead>
+                      <TableHead className="text-right">Saldo Resultante</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {productMovements.map((mov) => (
+                      <TableRow key={mov.id}>
+                        <TableCell className="whitespace-nowrap">
+                          {format(new Date(mov.date), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={mov.type === 'Entrada' ? 'default' : 'secondary'}
+                            className={
+                              mov.type === 'Entrada'
+                                ? 'bg-emerald-500 hover:bg-emerald-600'
+                                : 'bg-orange-100 text-orange-800 hover:bg-orange-200 border-orange-200'
+                            }
+                          >
+                            {mov.type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          <span
+                            className={
+                              mov.type === 'Entrada' ? 'text-emerald-600' : 'text-orange-600'
+                            }
+                          >
+                            {mov.type === 'Entrada' ? '+' : '-'}
+                            {mov.quantity}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-xs">
+                          {mov.origin}
+                        </TableCell>
+                        <TableCell className="text-right font-bold">{mov.balanceAfter}</TableCell>
+                      </TableRow>
+                    ))}
+                    {productMovements.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          Nenhuma movimentação registrada.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Dialog open={isAdjustmentOpen} onOpenChange={setIsAdjustmentOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={handleAdjustmentSubmit}>
+            <DialogHeader>
+              <DialogTitle>Novo Ajuste Manual</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Tipo de Movimento</Label>
+                <Select
+                  value={adjustmentType}
+                  onValueChange={(v) => setAdjustmentType(v as MovementType)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Entrada">Entrada (Acrescentar saldo)</SelectItem>
+                    <SelectItem value="Saída">Saída (Diminuir saldo)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Quantidade</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  required
+                  value={adjustmentQuantity}
+                  onChange={(e) => setAdjustmentQuantity(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>
+                  Motivo / Observação <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  required
+                  placeholder="Ex: Quebra, Perda, Correção de Inventário"
+                  value={adjustmentReason}
+                  onChange={(e) => setAdjustmentReason(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button variant="outline" type="button">
+                  Cancelar
+                </Button>
+              </DialogClose>
+              <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">
+                Salvar Ajuste
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <BarcodeScannerModal
         open={isScannerOpen}

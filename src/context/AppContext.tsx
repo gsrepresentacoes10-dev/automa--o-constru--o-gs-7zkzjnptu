@@ -36,6 +36,18 @@ export interface Product {
   minStock: number
 }
 
+export type MovementType = 'Entrada' | 'Saída'
+
+export interface StockMovement {
+  id: string
+  productId: string
+  date: string
+  type: MovementType
+  quantity: number
+  origin: string
+  balanceAfter: number
+}
+
 export interface Customer {
   id: string
   name: string
@@ -143,6 +155,13 @@ interface AppContextType {
   addProduct: (product: Omit<Product, 'id'>) => void
   updateProduct: (id: string, product: Partial<Product>) => void
   deleteProduct: (id: string) => void
+  stockMovements: StockMovement[]
+  addManualStockAdjustment: (
+    productId: string,
+    type: MovementType,
+    quantity: number,
+    reason: string,
+  ) => void
   sales: Sale[]
   setSales: (sales: Sale[]) => void
   addSale: (sale: Omit<Sale, 'id' | 'date' | 'status'>) => Sale
@@ -266,6 +285,16 @@ const initialProducts: Product[] = [
     minStock: 5,
   },
 ]
+
+const initialStockMovements: StockMovement[] = initialProducts.map((p) => ({
+  id: `MOV-INIT-${p.id}`,
+  productId: p.id,
+  date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+  type: 'Entrada',
+  quantity: p.stock,
+  origin: 'Saldo Inicial',
+  balanceAfter: p.stock,
+}))
 
 const initialCustomers: Customer[] = [
   {
@@ -399,6 +428,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User>(initialUsers[0])
   const [sellers, setSellers] = useState<Seller[]>(initialSellers)
   const [products, setProducts] = useState<Product[]>(initialProducts)
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>(initialStockMovements)
   const [sales, setSales] = useState<Sale[]>(initialSales)
   const [preSales, setPreSales] = useState<PreSale[]>(initialPreSales)
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
@@ -444,10 +474,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const addProduct = (newProduct: Omit<Product, 'id'>) => {
     const product: Product = { ...newProduct, id: `PROD-${Date.now()}` }
     setProducts([...products, product])
+
+    if (product.stock > 0) {
+      const movement: StockMovement = {
+        id: `MOV-${Date.now()}-${product.id}`,
+        productId: product.id,
+        date: new Date().toISOString(),
+        type: 'Entrada',
+        quantity: product.stock,
+        origin: 'Cadastro Inicial',
+        balanceAfter: product.stock,
+      }
+      setStockMovements((prev) => [movement, ...prev])
+    }
+
     toast({ title: 'Produto Cadastrado', description: `${product.name} adicionado com sucesso.` })
   }
 
   const updateProduct = (id: string, productData: Partial<Product>) => {
+    const product = products.find((p) => p.id === id)
+    if (product && productData.stock !== undefined && productData.stock !== product.stock) {
+      const newStock = productData.stock
+      const type: MovementType = newStock > product.stock ? 'Entrada' : 'Saída'
+      const qty = Math.abs(newStock - product.stock)
+      const movement: StockMovement = {
+        id: `MOV-${Date.now()}-${id}`,
+        productId: id,
+        date: new Date().toISOString(),
+        type,
+        quantity: qty,
+        origin: 'Edição de Cadastro',
+        balanceAfter: newStock,
+      }
+      setStockMovements((prev) => [movement, ...prev])
+    }
+
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...productData } : p)))
     toast({ title: 'Produto Atualizado', description: 'As alterações foram salvas.' })
   }
@@ -455,6 +516,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteProduct = (id: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== id))
     toast({ title: 'Produto Removido', description: 'Produto excluído do sistema.' })
+  }
+
+  const addManualStockAdjustment = (
+    productId: string,
+    type: MovementType,
+    quantity: number,
+    reason: string,
+  ) => {
+    const product = products.find((p) => p.id === productId)
+    if (!product) return
+
+    const newStock = type === 'Entrada' ? product.stock + quantity : product.stock - quantity
+    if (newStock < 0) {
+      toast({
+        title: 'Aviso',
+        description: 'O estoque não pode ficar negativo.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const movement: StockMovement = {
+      id: `MOV-${Date.now()}`,
+      productId,
+      date: new Date().toISOString(),
+      type,
+      quantity,
+      origin: `Ajuste Manual: ${reason}`,
+      balanceAfter: newStock,
+    }
+
+    setStockMovements((prev) => [movement, ...prev])
+    setProducts((prev) => prev.map((p) => (p.id === productId ? { ...p, stock: newStock } : p)))
+    toast({ title: 'Estoque Ajustado', description: `Novo saldo: ${newStock}` })
   }
 
   const addCustomer = (newCustomer: Omit<Customer, 'id' | 'totalSpent' | 'cashbackBalance'>) => {
@@ -496,13 +591,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     setPurchases([purchase, ...purchases])
 
+    const newMovements: StockMovement[] = []
+
     const updatedProducts = products.map((p) => {
       const pItem = newPurchase.items.find((item) => item.product.id === p.id)
       if (pItem) {
-        return { ...p, stock: p.stock + pItem.quantity, costPrice: pItem.costPrice }
+        const newStock = p.stock + pItem.quantity
+        newMovements.push({
+          id: `MOV-${Date.now()}-${p.id}`,
+          productId: p.id,
+          date: purchase.date,
+          type: 'Entrada',
+          quantity: pItem.quantity,
+          origin: `Compra #${purchase.id}`,
+          balanceAfter: newStock,
+        })
+        return { ...p, stock: newStock, costPrice: pItem.costPrice }
       }
       return p
     })
+
+    if (newMovements.length > 0) {
+      setStockMovements((prev) => [...newMovements, ...prev])
+    }
+
     setProducts(updatedProducts)
 
     toast({
@@ -622,10 +734,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     setSales([sale, ...sales])
 
+    const newMovements: StockMovement[] = []
+
     const updatedProducts = products.map((p) => {
       const soldItem = newSale.items.find((item) => item.product.id === p.id)
       if (soldItem) {
         const newStock = p.stock - soldItem.quantity
+
+        newMovements.push({
+          id: `MOV-${Date.now()}-${p.id}`,
+          productId: p.id,
+          date: sale.date,
+          type: 'Saída',
+          quantity: soldItem.quantity,
+          origin: `Venda #${sale.id}`,
+          balanceAfter: newStock,
+        })
+
         if (newStock <= p.minStock && p.stock > p.minStock) {
           setTimeout(() => {
             toast({
@@ -639,6 +764,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       return p
     })
+
+    if (newMovements.length > 0) {
+      setStockMovements((prev) => [...newMovements, ...prev])
+    }
+
     setProducts(updatedProducts)
 
     if (sale.customerId) {
@@ -710,6 +840,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addProduct,
         updateProduct,
         deleteProduct,
+        stockMovements,
+        addManualStockAdjustment,
         sales,
         setSales,
         addSale,
