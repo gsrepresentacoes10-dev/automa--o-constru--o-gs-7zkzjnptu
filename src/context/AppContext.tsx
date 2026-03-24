@@ -26,6 +26,7 @@ export type PaymentMethod =
 export interface Product {
   id: string
   sku: string
+  barcode?: string
   name: string
   category: string
   unit: string
@@ -139,6 +140,9 @@ interface AppContextType {
   deleteSeller: (id: string) => void
   products: Product[]
   setProducts: (products: Product[]) => void
+  addProduct: (product: Omit<Product, 'id'>) => void
+  updateProduct: (id: string, product: Partial<Product>) => void
+  deleteProduct: (id: string) => void
   sales: Sale[]
   setSales: (sales: Sale[]) => void
   addSale: (sale: Omit<Sale, 'id' | 'date' | 'status'>) => Sale
@@ -180,6 +184,7 @@ const initialProducts: Product[] = [
   {
     id: '1',
     sku: 'CIM-001',
+    barcode: '7891000000001',
     name: 'Cimento CP II 50kg',
     category: 'Básico',
     unit: 'sc',
@@ -191,6 +196,7 @@ const initialProducts: Product[] = [
   {
     id: '2',
     sku: 'TIJ-008',
+    barcode: '7891000000002',
     name: 'Tijolo Baiano 8 Furos',
     category: 'Básico',
     unit: 'un',
@@ -202,6 +208,7 @@ const initialProducts: Product[] = [
   {
     id: '3',
     sku: 'ARG-003',
+    barcode: '7891000000003',
     name: 'Argamassa ACIII 20kg',
     category: 'Básico',
     unit: 'sc',
@@ -213,6 +220,7 @@ const initialProducts: Product[] = [
   {
     id: '4',
     sku: 'POR-001',
+    barcode: '7891000000004',
     name: 'Porcelanato Polido 60x60',
     category: 'Pisos',
     unit: 'm²',
@@ -224,6 +232,7 @@ const initialProducts: Product[] = [
   {
     id: '5',
     sku: 'TUB-100',
+    barcode: '7891000000005',
     name: 'Tubo PVC 100mm',
     category: 'Hidráulica',
     unit: 'br',
@@ -235,6 +244,7 @@ const initialProducts: Product[] = [
   {
     id: '6',
     sku: 'CAB-004',
+    barcode: '7891000000006',
     name: 'Cabo Flexível 4mm',
     category: 'Elétrica',
     unit: 'rl',
@@ -246,6 +256,7 @@ const initialProducts: Product[] = [
   {
     id: '7',
     sku: 'TIN-018',
+    barcode: '7891000000007',
     name: 'Tinta Acrílica Fosca 18L',
     category: 'Pintura',
     unit: 'lt',
@@ -428,6 +439,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteSeller = (id: string) => {
     setSellers((prev) => prev.filter((s) => s.id !== id))
     toast({ title: 'Vendedor Removido' })
+  }
+
+  const addProduct = (newProduct: Omit<Product, 'id'>) => {
+    const product: Product = { ...newProduct, id: `PROD-${Date.now()}` }
+    setProducts([...products, product])
+    toast({ title: 'Produto Cadastrado', description: `${product.name} adicionado com sucesso.` })
+  }
+
+  const updateProduct = (id: string, productData: Partial<Product>) => {
+    setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...productData } : p)))
+    toast({ title: 'Produto Atualizado', description: 'As alterações foram salvas.' })
+  }
+
+  const deleteProduct = (id: string) => {
+    setProducts((prev) => prev.filter((p) => p.id !== id))
+    toast({ title: 'Produto Removido', description: 'Produto excluído do sistema.' })
   }
 
   const addCustomer = (newCustomer: Omit<Customer, 'id' | 'totalSpent' | 'cashbackBalance'>) => {
@@ -680,6 +707,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         deleteSeller,
         products,
         setProducts,
+        addProduct,
+        updateProduct,
+        deleteProduct,
         sales,
         setSales,
         addSale,

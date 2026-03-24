@@ -99,7 +99,8 @@ export default function Sales() {
   const filteredProducts = products.filter(
     (p) =>
       (p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.sku.toLowerCase().includes(searchTerm.toLowerCase())) &&
+        p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (p.barcode && p.barcode.includes(searchTerm))) &&
       p.stock > 0,
   )
 
@@ -161,7 +162,8 @@ export default function Sales() {
     e.preventDefault()
     if (!barcode.trim()) return
     const product = products.find(
-      (p) => p.sku.toLowerCase() === barcode.toLowerCase() || p.id === barcode,
+      (p) =>
+        p.sku.toLowerCase() === barcode.toLowerCase() || p.id === barcode || p.barcode === barcode,
     )
     if (product) {
       if (product.stock <= 0) {
@@ -350,7 +352,7 @@ export default function Sales() {
             <div className="relative">
               <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
               <Input
-                placeholder="Buscar por nome ou SKU..."
+                placeholder="Buscar por nome, SKU ou EAN..."
                 className="pl-10 h-12 shadow-sm"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -368,6 +370,9 @@ export default function Sales() {
                 >
                   <div>
                     <p className="font-semibold text-sm leading-tight mb-1">{product.name}</p>
+                    <p className="text-[10px] text-muted-foreground mb-1">
+                      Cód: {product.barcode || product.sku}
+                    </p>
                     <p className="text-xs text-muted-foreground mb-2">
                       Estoque: {product.stock} {product.unit}
                     </p>

@@ -14,6 +14,7 @@ import {
   Truck,
   TrendingUp,
   Tags,
+  Boxes,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -67,6 +68,7 @@ const menuSections = [
   {
     label: 'Cadastros',
     items: [
+      { title: 'Produtos', url: '/produtos', icon: Boxes, roles: ['Admin', 'Manager'] },
       { title: 'Vendedores', url: '/vendedores', icon: Tags, roles: ['Admin', 'Manager'] },
       { title: 'Clientes', url: '/clientes', icon: Users, roles: ['Admin', 'Manager'] },
       { title: 'Usuários do Sistema', url: '/colaboradores', icon: UserCog, roles: ['Admin'] },

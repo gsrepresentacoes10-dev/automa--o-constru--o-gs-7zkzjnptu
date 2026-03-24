@@ -6,6 +6,7 @@ import { AppProvider } from '@/context/AppContext'
 import Layout from './components/Layout'
 import Index from './pages/Index'
 import Inventory from './pages/Inventory'
+import Products from './pages/Products'
 import Sales from './pages/Sales'
 import Invoices from './pages/Invoices'
 import Customers from './pages/Customers'
@@ -31,6 +32,7 @@ const App = () => (
           <Route element={<Layout />}>
             <Route path="/" element={<Index />} />
             <Route path="/estoque" element={<Inventory />} />
+            <Route path="/produtos" element={<Products />} />
             <Route path="/vendas" element={<Sales />} />
             <Route path="/orcamentos" element={<Quotes />} />
             <Route path="/compras" element={<Purchases />} />
