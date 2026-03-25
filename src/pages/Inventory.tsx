@@ -16,7 +16,6 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
   Table,
@@ -56,7 +55,6 @@ export default function Inventory() {
   const { products, stockMovements, addManualStockAdjustment, purchaseOrders, purchases } =
     useAppContext()
   const [searchTerm, setSearchTerm] = useState('')
-  const [showCriticalOnly, setShowCriticalOnly] = useState(false)
   const [isScannerOpen, setIsScannerOpen] = useState(false)
 
   const [selectedProductHistory, setSelectedProductHistory] = useState<Product | null>(null)
@@ -84,15 +82,11 @@ export default function Inventory() {
   }, [products])
 
   const filteredProducts = sortedProducts.filter((p) => {
-    const matchesSearch =
+    return (
       p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.barcode && p.barcode.includes(searchTerm))
-
-    if (showCriticalOnly) {
-      return matchesSearch && p.stock <= p.minStock
-    }
-    return matchesSearch
+    )
   })
 
   const currentProductForHistory = useMemo(() => {
@@ -137,7 +131,7 @@ export default function Inventory() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Gestão de Estoque</h1>
           <p className="text-muted-foreground">
-            Monitore níveis de inventário, alertas de reposição e realize ajustes manuais (Kardex).
+            Monitore níveis de inventário e realize ajustes manuais (Kardex).
           </p>
         </div>
       </div>
@@ -164,21 +158,6 @@ export default function Inventory() {
               <Camera className="h-4 w-4" />
             </Button>
           </form>
-
-          <div className="flex items-center space-x-2 bg-background border px-3 py-2 rounded-md shadow-sm">
-            <Checkbox
-              id="critical-stock"
-              checked={showCriticalOnly}
-              onCheckedChange={(c) => setShowCriticalOnly(c as boolean)}
-            />
-            <Label
-              htmlFor="critical-stock"
-              className="text-sm font-medium cursor-pointer flex items-center gap-1.5"
-            >
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              Mostrar apenas estoque crítico/baixo
-            </Label>
-          </div>
         </div>
         <div className="overflow-x-auto">
           <Table>

@@ -28,6 +28,7 @@ export interface Product {
   sku: string
   barcode?: string
   name: string
+  brand?: string
   category: string
   unit: string
   price: number
@@ -264,6 +265,7 @@ const initialProducts: Product[] = [
     sku: 'CIM-001',
     barcode: '7891000000001',
     name: 'Cimento CP II 50kg',
+    brand: 'Votorantim',
     category: 'Básico',
     unit: 'sc',
     price: 35.9,
@@ -277,6 +279,7 @@ const initialProducts: Product[] = [
     sku: 'TIJ-008',
     barcode: '7891000000002',
     name: 'Tijolo Baiano 8 Furos',
+    brand: 'Cerâmica São João',
     category: 'Básico',
     unit: 'un',
     price: 1.15,
@@ -290,6 +293,7 @@ const initialProducts: Product[] = [
     sku: 'ARG-003',
     barcode: '7891000000003',
     name: 'Argamassa ACIII 20kg',
+    brand: 'Quartzolit',
     category: 'Básico',
     unit: 'sc',
     price: 28.5,
@@ -302,6 +306,7 @@ const initialProducts: Product[] = [
     sku: 'POR-001',
     barcode: '7891000000004',
     name: 'Porcelanato Polido 60x60',
+    brand: 'Portobello',
     category: 'Pisos',
     unit: 'm²',
     price: 59.9,
@@ -314,6 +319,7 @@ const initialProducts: Product[] = [
     sku: 'TUB-100',
     barcode: '7891000000005',
     name: 'Tubo PVC 100mm',
+    brand: 'Tigre',
     category: 'Hidráulica',
     unit: 'br',
     price: 45.0,
@@ -326,6 +332,7 @@ const initialProducts: Product[] = [
     sku: 'CAB-004',
     barcode: '7891000000006',
     name: 'Cabo Flexível 4mm',
+    brand: 'Sil',
     category: 'Elétrica',
     unit: 'rl',
     price: 180.0,
@@ -338,6 +345,7 @@ const initialProducts: Product[] = [
     sku: 'TIN-018',
     barcode: '7891000000007',
     name: 'Tinta Acrílica Fosca 18L',
+    brand: 'Suvinil',
     category: 'Pintura',
     unit: 'lt',
     price: 220.0,

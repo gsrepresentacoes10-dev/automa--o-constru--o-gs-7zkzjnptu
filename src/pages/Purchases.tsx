@@ -16,6 +16,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -49,7 +50,12 @@ import { toast } from '@/hooks/use-toast'
 export default function Purchases() {
   const { products, sales, purchases, suppliers, updateProduct, addPurchase, addPayable } =
     useAppContext()
-  const [searchTerm, setSearchTerm] = useState('')
+
+  // Advanced Procurement Filters
+  const [descriptionSearch, setDescriptionSearch] = useState('')
+  const [showLowStock, setShowLowStock] = useState(false)
+  const [brandFilter, setBrandFilter] = useState('all')
+
   const [sortBy, setSortBy] = useState<'urgency' | 'name'>('urgency')
   const [purchaseFilter, setPurchaseFilter] = useState<string>('all')
 
@@ -69,6 +75,11 @@ export default function Purchases() {
     { product: any; quantity: number; costPrice: number }[]
   >([])
   const [installments, setInstallments] = useState<{ dueDate: string; amount: number }[]>([])
+
+  const uniqueBrands = useMemo(() => {
+    const brands = products.map((p) => p.brand).filter(Boolean) as string[]
+    return Array.from(new Set(brands)).sort()
+  }, [products])
 
   const newPurchaseTotal = useMemo(
     () => purchaseItems.reduce((acc, item) => acc + item.quantity * item.costPrice, 0),
@@ -203,17 +214,24 @@ export default function Purchases() {
   }, [replenishmentData])
 
   const filteredAndSortedData = useMemo(() => {
-    let result = replenishmentData.filter(
-      (p) =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (p.barcode && p.barcode.includes(searchTerm)),
-    )
+    let result = replenishmentData.filter((p) => {
+      const matchesSearch =
+        p.name.toLowerCase().includes(descriptionSearch.toLowerCase()) ||
+        p.sku.toLowerCase().includes(descriptionSearch.toLowerCase()) ||
+        (p.barcode && p.barcode.includes(descriptionSearch))
+
+      const matchesLowStock = showLowStock ? p.stock <= p.minStock : true
+      const matchesBrand = brandFilter === 'all' ? true : p.brand === brandFilter
+
+      return matchesSearch && matchesLowStock && matchesBrand
+    })
+
     if (purchaseFilter !== 'all') {
       if (purchaseFilter === 'sugerido') {
         result = result.filter((p) => p.purchaseStatus === 'Sugerido')
       }
     }
+
     return result.sort((a, b) => {
       if (sortBy === 'urgency') {
         if (a.daysOfCover === b.daysOfCover) return a.stock - b.stock
@@ -221,7 +239,7 @@ export default function Purchases() {
       }
       return a.name.localeCompare(b.name)
     })
-  }, [replenishmentData, searchTerm, sortBy, purchaseFilter])
+  }, [replenishmentData, descriptionSearch, showLowStock, brandFilter, sortBy, purchaseFilter])
 
   const summary = useMemo(() => {
     return replenishmentData.reduce(
@@ -399,36 +417,78 @@ export default function Purchases() {
           </div>
 
           <div className="bg-card border rounded-lg shadow-sm overflow-hidden flex flex-col">
-            <div className="p-4 border-b bg-muted/20 flex flex-col sm:flex-row gap-4 items-center justify-between">
-              <div className="relative w-full max-w-sm">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar produto ou SKU..."
-                  className="pl-9"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-                <Select value={purchaseFilter} onValueChange={setPurchaseFilter}>
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="Status do Pedido" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os Status</SelectItem>
-                    <SelectItem value="sugerido">Sugeridos</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="p-4 border-b bg-muted/20 space-y-4">
+              <div className="flex flex-col sm:flex-row gap-4 items-end">
+                <div className="flex-1 w-full space-y-1.5">
+                  <Label>Descrição</Label>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por descrição, nome ou SKU..."
+                      className="pl-9"
+                      value={descriptionSearch}
+                      onChange={(e) => setDescriptionSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
 
-                <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'urgency' | 'name')}>
-                  <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="Ordenar por" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="urgency">Urgência de Reposição</SelectItem>
-                    <SelectItem value="name">Nome (A-Z)</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="w-full sm:w-[200px] space-y-1.5">
+                  <Label>Marca</Label>
+                  <Select value={brandFilter} onValueChange={setBrandFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Marca" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as Marcas</SelectItem>
+                      {uniqueBrands.map((brand) => (
+                        <SelectItem key={brand} value={brand}>
+                          {brand}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="w-full sm:w-[180px] space-y-1.5">
+                  <Label>Status do Pedido</Label>
+                  <Select value={purchaseFilter} onValueChange={setPurchaseFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os Status</SelectItem>
+                      <SelectItem value="sugerido">Sugeridos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="w-full sm:w-[180px] space-y-1.5">
+                  <Label>Ordenar por</Label>
+                  <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'urgency' | 'name')}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Ordenar" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="urgency">Urgência</SelectItem>
+                      <SelectItem value="name">Nome (A-Z)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 bg-background w-fit border px-3 py-2 rounded-md shadow-sm">
+                <Checkbox
+                  id="low-stock-filter"
+                  checked={showLowStock}
+                  onCheckedChange={(c) => setShowLowStock(c as boolean)}
+                />
+                <Label
+                  htmlFor="low-stock-filter"
+                  className="text-sm font-medium cursor-pointer flex items-center gap-1.5"
+                >
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  Estoque Baixo
+                </Label>
               </div>
             </div>
 
@@ -436,7 +496,7 @@ export default function Purchases() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Produto / ABC</TableHead>
+                    <TableHead>Produto / Marca</TableHead>
                     <TableHead>Saúde do Estoque</TableHead>
                     <TableHead className="text-center">Vendas (30d) / Média</TableHead>
                     <TableHead className="text-center w-[100px]">Prazo (Dias)</TableHead>
@@ -449,8 +509,14 @@ export default function Purchases() {
                     <TableRow key={item.id}>
                       <TableCell>
                         <div className="font-medium">{item.name}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5 mb-1.5">
-                          SKU: {item.sku}
+                        <div className="text-xs text-muted-foreground mt-0.5 mb-1.5 flex items-center gap-2">
+                          <span>SKU: {item.sku}</span>
+                          {item.brand && (
+                            <>
+                              <span className="w-1 h-1 rounded-full bg-border" />
+                              <span className="font-medium">{item.brand}</span>
+                            </>
+                          )}
                         </div>
                         <Badge
                           variant="outline"
@@ -580,7 +646,7 @@ export default function Purchases() {
                   {filteredAndSortedData.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        Nenhum produto encontrado.
+                        Nenhum produto encontrado com os filtros aplicados.
                       </TableCell>
                     </TableRow>
                   )}
