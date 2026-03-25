@@ -11,6 +11,7 @@ import {
   Truck,
   FileText,
   PackageOpen,
+  DollarSign,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -26,6 +27,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Sheet,
   SheetContent,
@@ -101,6 +103,10 @@ export default function Inventory() {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }, [stockMovements, selectedProductHistory])
 
+  const totalInventoryValue = useMemo(() => {
+    return products.reduce((acc, p) => acc + (p.stock > 0 ? p.stock * p.costPrice : 0), 0)
+  }, [products])
+
   const handleCameraScan = (barcode: string) => {
     setSearchTerm(barcode)
   }
@@ -134,6 +140,21 @@ export default function Inventory() {
             Monitore níveis de inventário e realize ajustes manuais (Kardex).
           </p>
         </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Valor Total em Estoque</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(totalInventoryValue)}</div>
+            <p className="text-xs text-muted-foreground">
+              Soma do custo de todos os produtos em estoque
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="bg-card border rounded-lg overflow-hidden shadow-sm">

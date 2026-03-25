@@ -246,6 +246,8 @@ interface AppContextType {
   addCashClosing: (closing: Omit<CashClosing, 'id'>) => void
   maxDiscountPercentage: number
   setMaxDiscountPercentage: (val: number) => void
+  monthlySalesGoal: number
+  setMonthlySalesGoal: (goal: number) => void
 }
 
 const initialUsers: User[] = [
@@ -555,6 +557,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [cashClosings, setCashClosings] = useState<CashClosing[]>([])
 
   const [maxDiscountPercentage, setMaxDiscountPercentage] = useState<number>(10)
+  const [monthlySalesGoal, setMonthlySalesGoal] = useState<number>(50000)
 
   const cashbackPercentage = 2
 
@@ -1282,6 +1285,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addCashClosing,
         maxDiscountPercentage,
         setMaxDiscountPercentage,
+        monthlySalesGoal,
+        setMonthlySalesGoal,
       }}
     >
       {children}

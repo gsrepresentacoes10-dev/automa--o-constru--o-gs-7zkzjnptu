@@ -1,7 +1,8 @@
+import { useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { useAppContext } from '@/context/AppContext'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, cn } from '@/lib/utils'
 import {
   DollarSign,
   ShoppingCart,
@@ -11,6 +12,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  Edit2,
 } from 'lucide-react'
 import { subDays, subWeeks, subMonths, format, startOfWeek, isSameMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -33,9 +35,32 @@ import {
 } from 'recharts'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Progress } from '@/components/ui/progress'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 
 export default function Index() {
-  const { products, sales, quotes, role, payables, purchases } = useAppContext()
+  const {
+    products,
+    sales,
+    quotes,
+    role,
+    payables,
+    purchases,
+    monthlySalesGoal,
+    setMonthlySalesGoal,
+  } = useAppContext()
+  const [isGoalDialogOpen, setIsGoalDialogOpen] = useState(false)
+  const [goalInput, setGoalInput] = useState(monthlySalesGoal.toString())
 
   if (role === 'Seller') {
     return <Navigate to="/vendas" replace />
@@ -63,6 +88,14 @@ export default function Index() {
   const approvedQuotes = quotes.filter((q) => q.status === 'Aprovado').length
   const rejectedQuotes = quotes.filter((q) => q.status === 'Reprovado').length
   const convertedQuotes = quotes.filter((q) => q.status === 'Convertido').length
+
+  const currentMonthSales = sales
+    .filter((s) => isSameMonth(new Date(s.date), today) && s.status !== 'Cancelado')
+    .reduce((acc, s) => acc + s.total, 0)
+
+  const goalProgress =
+    monthlySalesGoal > 0 ? Math.min((currentMonthSales / monthlySalesGoal) * 100, 100) : 0
+  const isGoalMet = currentMonthSales >= monthlySalesGoal
 
   const dailyData = Array.from({ length: 7 }).map((_, i) => {
     const date = subDays(new Date(), 6 - i)
@@ -114,6 +147,12 @@ export default function Index() {
     }
   })
 
+  const handleSaveGoal = (e: React.FormEvent) => {
+    e.preventDefault()
+    setMonthlySalesGoal(Number(goalInput))
+    setIsGoalDialogOpen(false)
+  }
+
   return (
     <div className="space-y-6">
       {(overduePayables.length > 0 || dueTodayPayables.length > 0) && (
@@ -149,7 +188,75 @@ export default function Index() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="hover:shadow-md transition-shadow relative overflow-hidden">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Meta do Mês</CardTitle>
+            <Dialog open={isGoalDialogOpen} onOpenChange={setIsGoalDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 -mr-2"
+                  onClick={() => setGoalInput(monthlySalesGoal.toString())}
+                >
+                  <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <form onSubmit={handleSaveGoal}>
+                  <DialogHeader>
+                    <DialogTitle>Configurar Meta Mensal</DialogTitle>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Valor da Meta (R$)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={goalInput}
+                        onChange={(e) => setGoalInput(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => setIsGoalDialogOpen(false)}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button type="submit">Salvar Meta</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(currentMonthSales)}</div>
+            <div className="flex justify-between text-xs text-muted-foreground mb-1 mt-1">
+              <span>Progresso</span>
+              <span>{formatCurrency(monthlySalesGoal)}</span>
+            </div>
+            <Progress
+              value={goalProgress}
+              className="h-2"
+              indicatorClassName={isGoalMet ? 'bg-emerald-500' : 'bg-primary'}
+            />
+            <p
+              className={cn(
+                'text-xs mt-2 font-medium',
+                isGoalMet ? 'text-emerald-600' : 'text-muted-foreground',
+              )}
+            >
+              {isGoalMet ? 'Meta alcançada! 🎉' : `${goalProgress.toFixed(1)}% da meta alcançada`}
+            </p>
+          </CardContent>
+        </Card>
+
         <Card className="hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Faturamento Total</CardTitle>
