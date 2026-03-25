@@ -115,6 +115,14 @@ export interface Purchase {
   total: number
 }
 
+export interface PurchaseOrder {
+  id: string
+  productId: string
+  status: 'Aguardando Chegada' | 'Entregue' | 'Cancelado'
+  expectedDeliveryDate: string
+  documentUrl?: string
+}
+
 export interface QuoteEditLog {
   timestamp: string
   userName: string
@@ -179,6 +187,7 @@ interface AppContextType {
   setSuppliers: (suppliers: Supplier[]) => void
   purchases: Purchase[]
   addPurchase: (purchase: Omit<Purchase, 'id' | 'date'>) => void
+  purchaseOrders: PurchaseOrder[]
   quotes: Quote[]
   addQuote: (quote: Omit<Quote, 'id' | 'date' | 'status'>) => void
   updateQuote: (id: string, quote: Partial<Quote>, logEdit?: boolean) => void
@@ -387,6 +396,17 @@ const initialSuppliers: Supplier[] = [
   },
 ]
 
+const initialPurchases: Purchase[] = [
+  {
+    id: 'C-1001',
+    date: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    supplierId: '1',
+    supplierName: 'Votorantim Cimentos',
+    items: [{ product: initialProducts[0], quantity: 100, costPrice: 28.0 }],
+    total: 2800.0,
+  },
+]
+
 const initialQuotes: Quote[] = [
   {
     id: 'ORC-1001',
@@ -433,7 +453,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [preSales, setPreSales] = useState<PreSale[]>(initialPreSales)
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
   const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers)
-  const [purchases, setPurchases] = useState<Purchase[]>([])
+  const [purchases, setPurchases] = useState<Purchase[]>(initialPurchases)
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
   const [quotes, setQuotes] = useState<Quote[]>(initialQuotes)
   const cashbackPercentage = 2
 
@@ -859,6 +880,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSuppliers,
         purchases,
         addPurchase,
+        purchaseOrders,
         quotes,
         addQuote,
         updateQuote,
