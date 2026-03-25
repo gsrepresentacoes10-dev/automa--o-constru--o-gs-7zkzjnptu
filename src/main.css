@@ -109,6 +109,27 @@
     font-family: monospace;
     font-size: 12px;
   }
+
+  body.printing-inventory > #root {
+    display: none !important;
+  }
+  body.printing-inventory > .inventory-report {
+    display: block !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  body.printing-inventory .inventory-report table {
+    page-break-inside: auto;
+  }
+  body.printing-inventory .inventory-report tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  body.printing-inventory .inventory-report thead {
+    display: table-header-group;
+  }
+
   body:not(.printing-receipt) {
     background-color: white !important;
   }

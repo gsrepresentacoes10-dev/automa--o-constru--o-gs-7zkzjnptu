@@ -12,6 +12,7 @@ import {
   FileText,
   PackageOpen,
   DollarSign,
+  Printer,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -52,12 +53,14 @@ import {
 } from '@/components/ui/select'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
+import { PrintInventoryModal } from '@/components/PrintInventoryModal'
 
 export default function Inventory() {
   const { products, stockMovements, addManualStockAdjustment, purchaseOrders, purchases } =
     useAppContext()
   const [searchTerm, setSearchTerm] = useState('')
   const [isScannerOpen, setIsScannerOpen] = useState(false)
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
 
   const [selectedProductHistory, setSelectedProductHistory] = useState<Product | null>(null)
   const [isAdjustmentOpen, setIsAdjustmentOpen] = useState(false)
@@ -140,6 +143,13 @@ export default function Inventory() {
             Monitore níveis de inventário e realize ajustes manuais (Kardex).
           </p>
         </div>
+        <Button
+          onClick={() => setIsPrintModalOpen(true)}
+          variant="outline"
+          className="bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50 shadow-sm w-full sm:w-auto"
+        >
+          <Printer className="h-4 w-4 mr-2" /> Imprimir Inventário
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -521,6 +531,12 @@ export default function Inventory() {
         open={isScannerOpen}
         onOpenChange={setIsScannerOpen}
         onScan={handleCameraScan}
+      />
+
+      <PrintInventoryModal
+        open={isPrintModalOpen}
+        onOpenChange={setIsPrintModalOpen}
+        products={products}
       />
     </div>
   )
