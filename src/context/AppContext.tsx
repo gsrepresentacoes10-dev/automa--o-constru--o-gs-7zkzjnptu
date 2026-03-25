@@ -212,6 +212,7 @@ interface AppContextType {
   setSales: (sales: Sale[]) => void
   addSale: (sale: Omit<Sale, 'id' | 'date' | 'status'>) => Sale
   updateSale: (id: string, saleData: Partial<Sale>) => void
+  cancelSale: (id: string) => void
   markSaleAsPaid: (id: string) => void
   preSales: PreSale[]
   addPreSale: (preSale: Omit<PreSale, 'id' | 'date'>) => void
@@ -645,7 +646,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     const movement: StockMovement = {
-      id: `MOV-${Date.now()}`,
+      id: `MOV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       productId,
       date: new Date().toISOString(),
       type,
@@ -865,14 +866,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSales([sale, ...sales])
 
     const newMovements: StockMovement[] = []
+    const updatedProducts = [...products]
 
-    const updatedProducts = products.map((p) => {
-      const soldItem = newSale.items.find((item) => item.product.id === p.id)
-      if (soldItem) {
+    sale.items.forEach((soldItem) => {
+      const pIndex = updatedProducts.findIndex((p) => p.id === soldItem.product.id)
+      if (pIndex !== -1) {
+        const p = updatedProducts[pIndex]
         const newStock = p.stock - soldItem.quantity
 
         newMovements.push({
-          id: `MOV-${Date.now()}-${p.id}`,
+          id: `MOV-${Date.now()}-${p.id}-${Math.floor(Math.random() * 1000)}`,
           productId: p.id,
           date: sale.date,
           type: 'Saída',
@@ -890,9 +893,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             })
           }, 500)
         }
-        return { ...p, stock: newStock }
+        updatedProducts[pIndex] = { ...p, stock: newStock }
       }
-      return p
     })
 
     if (newMovements.length > 0) {
@@ -921,7 +923,121 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const updateSale = (id: string, saleData: Partial<Sale>) => {
+    const oldSale = sales.find((s) => s.id === id)
+    if (!oldSale || oldSale.status === 'Cancelado') {
+      setSales((prev) => prev.map((s) => (s.id === id ? { ...s, ...saleData } : s)))
+      return
+    }
+
+    if (saleData.items) {
+      const oldItems = oldSale.items
+      const newItems = saleData.items
+
+      const newMovements: StockMovement[] = []
+      const updatedProducts = [...products]
+
+      const productIds = new Set([
+        ...oldItems.map((i) => i.product.id),
+        ...newItems.map((i) => i.product.id),
+      ])
+
+      productIds.forEach((productId) => {
+        const oldQty = oldItems.find((i) => i.product.id === productId)?.quantity || 0
+        const newQty = newItems.find((i) => i.product.id === productId)?.quantity || 0
+
+        if (oldQty !== newQty) {
+          const productIndex = updatedProducts.findIndex((p) => p.id === productId)
+          if (productIndex !== -1) {
+            const product = updatedProducts[productIndex]
+            const diff = newQty - oldQty
+            const newStock = product.stock - diff
+
+            newMovements.push({
+              id: `MOV-${Date.now()}-${productId}-EDIT-${Math.floor(Math.random() * 1000)}`,
+              productId,
+              date: new Date().toISOString(),
+              type: diff > 0 ? 'Saída' : 'Entrada',
+              quantity: Math.abs(diff),
+              origin: `Edição de Venda #${oldSale.id}`,
+              balanceAfter: newStock,
+            })
+
+            updatedProducts[productIndex] = { ...product, stock: newStock }
+
+            if (diff > 0 && newStock <= product.minStock && product.stock > product.minStock) {
+              setTimeout(() => {
+                toast({
+                  title: 'Alerta de Estoque: Email Enviado',
+                  description: `O produto ${product.name} atingiu o estoque mínimo de ${product.minStock}.`,
+                  variant: 'destructive',
+                })
+              }, 500)
+            }
+          }
+        }
+      })
+
+      setProducts(updatedProducts)
+      if (newMovements.length > 0) {
+        setStockMovements((prev) => [...newMovements, ...prev])
+      }
+    }
+
     setSales((prev) => prev.map((s) => (s.id === id ? { ...s, ...saleData } : s)))
+  }
+
+  const cancelSale = (id: string) => {
+    const sale = sales.find((s) => s.id === id)
+    if (!sale || sale.status === 'Cancelado') return
+
+    const newMovements: StockMovement[] = []
+    const updatedProducts = [...products]
+
+    sale.items.forEach((item) => {
+      const productIndex = updatedProducts.findIndex((p) => p.id === item.product.id)
+      if (productIndex !== -1) {
+        const product = updatedProducts[productIndex]
+        const newStock = product.stock + item.quantity
+        newMovements.push({
+          id: `MOV-${Date.now()}-${product.id}-CANC-${Math.floor(Math.random() * 1000)}`,
+          productId: product.id,
+          date: new Date().toISOString(),
+          type: 'Entrada',
+          quantity: item.quantity,
+          origin: `Estorno Venda #${sale.id}`,
+          balanceAfter: newStock,
+        })
+        updatedProducts[productIndex] = { ...product, stock: newStock }
+      }
+    })
+
+    setProducts(updatedProducts)
+    if (newMovements.length > 0) {
+      setStockMovements((prev) => [...newMovements, ...prev])
+    }
+
+    setSales((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'Cancelado' } : s)))
+
+    if (sale.customerId) {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          if (c.id === sale.customerId) {
+            return {
+              ...c,
+              totalSpent: Math.max(0, c.totalSpent - sale.total),
+              cashbackBalance:
+                c.cashbackBalance + (sale.cashbackUsed || 0) - (sale.cashbackEarned || 0),
+            }
+          }
+          return c
+        }),
+      )
+    }
+
+    toast({
+      title: 'Venda Cancelada',
+      description: 'Estoque e saldo do cliente restaurados com sucesso.',
+    })
   }
 
   const markSaleAsPaid = (id: string) => {
@@ -1118,6 +1234,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setSales,
         addSale,
         updateSale,
+        cancelSale,
         markSaleAsPaid,
         preSales,
         addPreSale,
@@ -1164,3 +1281,4 @@ export function useAppContext() {
   }
   return context
 }
+

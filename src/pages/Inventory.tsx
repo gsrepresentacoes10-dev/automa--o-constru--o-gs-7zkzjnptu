@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useAppContext, Product, MovementType } from '@/context/AppContext'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, cn } from '@/lib/utils'
 import {
   Search,
   AlertTriangle,
@@ -178,7 +178,7 @@ export default function Inventory() {
             </TableHeader>
             <TableBody>
               {filteredProducts.map((product) => {
-                const isOutOfStock = product.stock === 0
+                const isOutOfStock = product.stock <= 0
                 const isLow = !isOutOfStock && product.stock <= product.minStock
 
                 const pendingOrder = purchaseOrders.find(
@@ -458,3 +458,4 @@ export default function Inventory() {
     </div>
   )
 }
+
