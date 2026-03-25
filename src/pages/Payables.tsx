@@ -1,7 +1,18 @@
 import { useState, useMemo } from 'react'
 import { useAppContext, type Payable, type Supplier } from '@/context/AppContext'
 import { formatCurrency, cn } from '@/lib/utils'
-import { Wallet, CheckCircle2, Search, AlertCircle, MessageCircle } from 'lucide-react'
+import {
+  Wallet,
+  CheckCircle2,
+  Search,
+  AlertCircle,
+  MessageCircle,
+  Pencil,
+  Bot,
+  Zap,
+  Plus,
+} from 'lucide-react'
+import { toast } from '@/hooks/use-toast'
 import {
   Table,
   TableBody,
@@ -15,6 +26,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -58,7 +70,7 @@ const handleWhatsAppReminder = (payable: Payable, supplier?: Supplier) => {
 }
 
 export default function Payables() {
-  const { payables, markPayableAsPaid, suppliers } = useAppContext()
+  const { payables, markPayableAsPaid, suppliers, addPayable, updatePayable } = useAppContext()
   const [statusFilter, setStatusFilter] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -67,6 +79,16 @@ export default function Payables() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
   const [selectedPayableId, setSelectedPayableId] = useState<string | null>(null)
   const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0])
+
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    supplierId: '',
+    description: '',
+    amount: '',
+    dueDate: '',
+    autoReminder: false,
+  })
 
   const filteredPayables = useMemo(() => {
     return payables
@@ -120,6 +142,51 @@ export default function Payables() {
     setSelectedPayableId(null)
   }
 
+  const handleOpenForm = (payable?: Payable) => {
+    if (payable) {
+      setEditingId(payable.id)
+      setFormData({
+        supplierId: payable.supplierId,
+        description: payable.description,
+        amount: payable.amount.toString(),
+        dueDate: payable.dueDate ? new Date(payable.dueDate).toISOString().split('T')[0] : '',
+        autoReminder: payable.autoReminder || false,
+      })
+    } else {
+      setEditingId(null)
+      setFormData({
+        supplierId: suppliers[0]?.id || '',
+        description: '',
+        amount: '',
+        dueDate: new Date().toISOString().split('T')[0],
+        autoReminder: false,
+      })
+    }
+    setIsFormOpen(true)
+  }
+
+  const handleSaveForm = (e: React.FormEvent) => {
+    e.preventDefault()
+    const supplier = suppliers.find((s) => s.id === formData.supplierId)
+    if (!supplier) return
+
+    const payload = {
+      supplierId: formData.supplierId,
+      supplierName: supplier.name,
+      description: formData.description,
+      amount: parseFloat(formData.amount),
+      dueDate: new Date(formData.dueDate).toISOString(),
+      autoReminder: formData.autoReminder,
+    }
+
+    if (editingId) {
+      updatePayable(editingId, payload)
+    } else {
+      addPayable(payload)
+    }
+    setIsFormOpen(false)
+  }
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
@@ -129,6 +196,33 @@ export default function Payables() {
   const dueTodayPayables = payables.filter(
     (p) => p.status === 'Pendente' && new Date(p.dueDate).getTime() === today.getTime(),
   )
+
+  const autoRemindersPending = payables.filter((p) => p.status === 'Pendente' && p.autoReminder)
+
+  const handleBatchProcess = () => {
+    if (autoRemindersPending.length === 0) return
+    let processed = 0
+    autoRemindersPending.forEach((payable) => {
+      const supplier = suppliers.find((s) => s.id === payable.supplierId)
+      const phone = getSanitizedPhone(supplier?.contact)
+      if (phone) {
+        const formattedAmount = formatCurrency(payable.amount)
+        const formattedDate = payable.dueDate
+          ? new Date(payable.dueDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+          : '-'
+        const message = `Olá, gostaria de lembrar sobre o pagamento de ${payable.description} no valor de ${formattedAmount}, com vencimento em ${formattedDate}.`
+        window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank')
+        processed++
+      }
+    })
+    toast({
+      title: 'Processamento Concluído',
+      description: `${processed} guias do WhatsApp abertas. Lembre-se de permitir pop-ups no navegador caso seja bloqueado.`,
+    })
+  }
+
+  const selectedFormSupplier = suppliers.find((s) => s.id === formData.supplierId)
+  const hasValidPhone = !!getSanitizedPhone(selectedFormSupplier?.contact)
 
   return (
     <div className="space-y-6">
@@ -166,6 +260,20 @@ export default function Payables() {
           <p className="text-muted-foreground">
             Gestão de despesas com fornecedores e obrigações geradas pelas compras.
           </p>
+        </div>
+        <div className="flex gap-2">
+          {autoRemindersPending.length > 0 && (
+            <Button
+              onClick={handleBatchProcess}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              <Zap className="w-4 h-4 mr-2" />
+              Lembretes Automáticos ({autoRemindersPending.length})
+            </Button>
+          )}
+          <Button onClick={() => handleOpenForm()}>
+            <Plus className="h-4 w-4 mr-2" /> Nova Conta
+          </Button>
         </div>
       </div>
 
@@ -301,44 +409,66 @@ export default function Payables() {
                     <TableCell className="text-right font-medium">
                       {formatCurrency(payable.amount)}
                     </TableCell>
-                    <TableCell className="text-center">
-                      <Badge
-                        variant={isOverdue ? 'destructive' : isPending ? 'secondary' : 'default'}
-                        className={!isPending ? 'bg-emerald-500' : ''}
-                      >
-                        {isOverdue ? 'Atrasado' : payable.status}
-                      </Badge>
+                    <TableCell className="text-center space-y-1">
+                      <div>
+                        <Badge
+                          variant={isOverdue ? 'destructive' : isPending ? 'secondary' : 'default'}
+                          className={!isPending ? 'bg-emerald-500' : ''}
+                        >
+                          {isOverdue ? 'Atrasado' : payable.status}
+                        </Badge>
+                      </div>
+                      {payable.autoReminder && isPending && (
+                        <Badge
+                          variant="outline"
+                          className="bg-emerald-50 text-emerald-700 border-emerald-200"
+                        >
+                          <Bot className="w-3 h-3 mr-1" /> Auto
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
                         {isPending && (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div className="inline-block">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className={cn(
-                                    'w-9 p-0 border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300',
-                                    !hasPhone && 'opacity-50 pointer-events-none grayscale',
-                                  )}
-                                  onClick={() => {
-                                    if (hasPhone) handleWhatsAppReminder(payable, supplier)
-                                  }}
-                                >
-                                  <MessageCircle className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>
-                                {hasPhone
-                                  ? 'Enviar lembrete via WhatsApp'
-                                  : 'Fornecedor sem telefone cadastrado'}
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
+                          <>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="inline-block">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className={cn(
+                                      'w-9 p-0 border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300',
+                                      !hasPhone && 'opacity-50 pointer-events-none grayscale',
+                                    )}
+                                    onClick={() => {
+                                      if (hasPhone) handleWhatsAppReminder(payable, supplier)
+                                    }}
+                                  >
+                                    <MessageCircle className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>
+                                  {hasPhone
+                                    ? 'Enviar lembrete via WhatsApp'
+                                    : 'Fornecedor sem telefone cadastrado'}
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="w-9 p-0"
+                              onClick={() => handleOpenForm(payable)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
+
                         {isPending ? (
                           <Button
                             size="sm"
@@ -410,6 +540,103 @@ export default function Payables() {
               Confirmar Baixa
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent>
+          <form onSubmit={handleSaveForm}>
+            <DialogHeader>
+              <DialogTitle>{editingId ? 'Editar Conta a Pagar' : 'Nova Conta a Pagar'}</DialogTitle>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div className="space-y-2">
+                <Label>Fornecedor</Label>
+                <Select
+                  value={formData.supplierId}
+                  onValueChange={(val) => setFormData({ ...formData, supplierId: val })}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione um fornecedor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {suppliers.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Descrição / Referência</Label>
+                <Input
+                  required
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Ex: Compra de cimento"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Valor (R$)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={formData.amount}
+                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Data de Vencimento</Label>
+                  <Input
+                    type="date"
+                    required
+                    value={formData.dueDate}
+                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between border p-3 rounded-lg mt-2">
+                <div className="space-y-0.5">
+                  <Label className="text-base flex items-center gap-2">
+                    <Bot className="w-4 h-4 text-emerald-600" />
+                    Enviar lembrete automaticamente
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Permite processar esta conta em lote para envio de WhatsApp.
+                  </p>
+                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center">
+                      <Switch
+                        checked={formData.autoReminder}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, autoReminder: checked })
+                        }
+                        disabled={!hasValidPhone}
+                      />
+                    </div>
+                  </TooltipTrigger>
+                  {!hasValidPhone && (
+                    <TooltipContent>
+                      <p>O fornecedor selecionado não possui um telefone válido cadastrado.</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit">Salvar</Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>
