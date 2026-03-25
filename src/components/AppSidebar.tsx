@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   Package,
   ShoppingCart,
-  ReceiptText,
   Users,
   UserCog,
   BarChart3,
@@ -18,6 +17,7 @@ import {
   Boxes,
   LineChart,
   History,
+  Search,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -47,6 +47,12 @@ const menuSections = [
         title: 'Orçamentos',
         url: '/orcamentos',
         icon: FileText,
+        roles: ['Admin', 'Manager', 'Seller'],
+      },
+      {
+        title: 'Pesquisa de Vendas',
+        url: '/pesquisa-vendas',
+        icon: Search,
         roles: ['Admin', 'Manager', 'Seller'],
       },
       { title: 'Estoque', url: '/estoque', icon: Package, roles: ['Admin', 'Manager'] },
@@ -87,7 +93,6 @@ const menuSections = [
         icon: Wallet,
         roles: ['Admin', 'Manager'],
       },
-      { title: 'Notas Fiscais', url: '/notas-fiscais', icon: ReceiptText, roles: ['Admin'] },
     ],
   },
   {

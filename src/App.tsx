@@ -23,6 +23,7 @@ import SellerPerformance from './pages/SellerPerformance'
 import Checkout from './pages/Checkout'
 import NotFound from './pages/NotFound'
 import CashFlow from './pages/CashFlow'
+import SalesSearch from './pages/SalesSearch'
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/estoque" element={<Inventory />} />
             <Route path="/produtos" element={<Products />} />
             <Route path="/vendas" element={<Sales />} />
+            <Route path="/pesquisa-vendas" element={<SalesSearch />} />
             <Route path="/orcamentos" element={<Quotes />} />
             <Route path="/compras" element={<Purchases />} />
             <Route path="/historico-compras" element={<PurchaseHistory />} />
