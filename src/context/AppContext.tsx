@@ -159,6 +159,29 @@ export interface Quote {
   whatsappReminderDate?: string
 }
 
+export interface CashTransaction {
+  id: string
+  amount: number
+  method: PaymentMethod
+  timestamp: string
+  productId?: string
+  quantity?: number
+  status: 'Ativo' | 'Cancelado'
+}
+
+export interface CashClosing {
+  id: string
+  date: string
+  systemTotal: number
+  realTotal: number
+  difference: number
+  details: {
+    dinheiro: number
+    cartao: number
+    pix: number
+  }
+}
+
 interface AppContextType {
   role: Role
   setRole: (role: Role) => void
@@ -211,6 +234,12 @@ interface AppContextType {
   convertQuoteToSale: (quoteId: string, paymentMethod: PaymentMethod) => void
   convertQuoteToPreSale: (quoteId: string) => void
   processOnlinePayment: (type: 'quote' | 'sale', id: string, method: PaymentMethod) => void
+  cashTransactions: CashTransaction[]
+  addCashTransaction: (t: Omit<CashTransaction, 'id' | 'timestamp' | 'status'>) => void
+  updateCashTransaction: (id: string, t: Partial<CashTransaction>) => void
+  cancelCashTransaction: (id: string) => void
+  cashClosings: CashClosing[]
+  addCashClosing: (closing: Omit<CashClosing, 'id'>) => void
 }
 
 const initialUsers: User[] = [
@@ -498,6 +527,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
   const [payables, setPayables] = useState<Payable[]>(initialPayables)
   const [quotes, setQuotes] = useState<Quote[]>(initialQuotes)
+
+  const [cashTransactions, setCashTransactions] = useState<CashTransaction[]>([])
+  const [cashClosings, setCashClosings] = useState<CashClosing[]>([])
+
   const cashbackPercentage = 2
 
   const handleSetRole = (newRole: Role) => {
@@ -909,6 +942,148 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const addCashTransaction = (t: Omit<CashTransaction, 'id' | 'timestamp' | 'status'>) => {
+    const newTx: CashTransaction = {
+      ...t,
+      id: `CX-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      status: 'Ativo',
+    }
+    setCashTransactions((prev) => [newTx, ...prev])
+
+    if (t.productId && t.quantity) {
+      setProducts((prevProducts) => {
+        const product = prevProducts.find((p) => p.id === t.productId)
+        if (product) {
+          const newStock = product.stock - t.quantity!
+          setStockMovements((prev) => [
+            {
+              id: `MOV-${Date.now()}-${product.id}`,
+              productId: product.id,
+              date: newTx.timestamp,
+              type: 'Saída',
+              quantity: t.quantity!,
+              origin: `Caixa Rápido #${newTx.id}`,
+              balanceAfter: newStock,
+            },
+            ...prev,
+          ])
+          return prevProducts.map((p) => (p.id === product.id ? { ...p, stock: newStock } : p))
+        }
+        return prevProducts
+      })
+    }
+    toast({ title: 'Registro Salvo', description: 'A entrada de caixa foi registrada.' })
+  }
+
+  const updateCashTransaction = (id: string, updates: Partial<CashTransaction>) => {
+    setCashTransactions((prev) => {
+      const tx = prev.find((t) => t.id === id)
+      if (!tx || tx.status === 'Cancelado') return prev
+
+      const oldProductId = tx.productId
+      const oldQuantity = tx.quantity || 0
+
+      const newProductId = updates.productId !== undefined ? updates.productId : tx.productId
+      const newQuantity = updates.quantity !== undefined ? updates.quantity : tx.quantity || 0
+
+      if (oldProductId !== newProductId || oldQuantity !== newQuantity) {
+        setProducts((prevProducts) => {
+          let updatedProducts = [...prevProducts]
+
+          if (oldProductId && oldQuantity > 0) {
+            const oldP = updatedProducts.find((p) => p.id === oldProductId)
+            if (oldP) {
+              const revertedStock = oldP.stock + oldQuantity
+              updatedProducts = updatedProducts.map((p) =>
+                p.id === oldProductId ? { ...p, stock: revertedStock } : p,
+              )
+              setStockMovements((prevMov) => [
+                {
+                  id: `MOV-${Date.now()}-REV`,
+                  productId: oldProductId,
+                  date: new Date().toISOString(),
+                  type: 'Entrada',
+                  quantity: oldQuantity,
+                  origin: `Edição Caixa Reversão #${id}`,
+                  balanceAfter: revertedStock,
+                },
+                ...prevMov,
+              ])
+            }
+          }
+
+          if (newProductId && newQuantity > 0) {
+            const newP = updatedProducts.find((p) => p.id === newProductId)
+            if (newP) {
+              const appliedStock = newP.stock - newQuantity
+              updatedProducts = updatedProducts.map((p) =>
+                p.id === newProductId ? { ...p, stock: appliedStock } : p,
+              )
+              setStockMovements((prevMov) => [
+                {
+                  id: `MOV-${Date.now()}-APP`,
+                  productId: newProductId,
+                  date: new Date().toISOString(),
+                  type: 'Saída',
+                  quantity: newQuantity,
+                  origin: `Edição Caixa Aplicação #${id}`,
+                  balanceAfter: appliedStock,
+                },
+                ...prevMov,
+              ])
+            }
+          }
+
+          return updatedProducts
+        })
+      }
+
+      return prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
+    })
+    toast({ title: 'Registro Atualizado', description: 'As alterações foram salvas com sucesso.' })
+  }
+
+  const cancelCashTransaction = (id: string) => {
+    setCashTransactions((prev) => {
+      const tx = prev.find((t) => t.id === id)
+      if (!tx || tx.status === 'Cancelado') return prev
+
+      if (tx.productId && tx.quantity) {
+        setProducts((prevProducts) => {
+          const product = prevProducts.find((p) => p.id === tx.productId)
+          if (product) {
+            const newStock = product.stock + tx.quantity!
+            setStockMovements((prevMov) => [
+              {
+                id: `MOV-${Date.now()}-CANC`,
+                productId: product.id,
+                date: new Date().toISOString(),
+                type: 'Entrada',
+                quantity: tx.quantity!,
+                origin: `Estorno Caixa #${id}`,
+                balanceAfter: newStock,
+              },
+              ...prevMov,
+            ])
+            return prevProducts.map((p) => (p.id === product.id ? { ...p, stock: newStock } : p))
+          }
+          return prevProducts
+        })
+      }
+      return prev.map((t) => (t.id === id ? { ...t, status: 'Cancelado' } : t))
+    })
+    toast({
+      title: 'Estorno Realizado',
+      description: 'O registro foi cancelado e o estoque devolvido (se aplicável).',
+    })
+  }
+
+  const addCashClosing = (closing: Omit<CashClosing, 'id'>) => {
+    setCashClosings((prev) => [{ ...closing, id: `FECH-${Date.now()}` }, ...prev])
+    toast({ title: 'Caixa Fechado', description: 'Fechamento de caixa apurado com sucesso.' })
+  }
+
   return (
     <AppContext.Provider
       value={{
@@ -958,6 +1133,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         convertQuoteToSale,
         convertQuoteToPreSale,
         processOnlinePayment,
+        cashTransactions,
+        addCashTransaction,
+        updateCashTransaction,
+        cancelCashTransaction,
+        cashClosings,
+        addCashClosing,
       }}
     >
       {children}
