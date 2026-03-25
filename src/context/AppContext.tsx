@@ -124,6 +124,17 @@ export interface PurchaseOrder {
   documentUrl?: string
 }
 
+export interface Payable {
+  id: string
+  supplierId: string
+  supplierName: string
+  description: string
+  amount: number
+  dueDate: string
+  status: 'Pendente' | 'Pago'
+  purchaseId?: string
+}
+
 export interface QuoteEditLog {
   timestamp: string
   userName: string
@@ -187,8 +198,11 @@ interface AppContextType {
   suppliers: Supplier[]
   setSuppliers: (suppliers: Supplier[]) => void
   purchases: Purchase[]
-  addPurchase: (purchase: Omit<Purchase, 'id' | 'date'>) => void
+  addPurchase: (purchase: Omit<Purchase, 'id' | 'date'>) => Purchase
   purchaseOrders: PurchaseOrder[]
+  payables: Payable[]
+  addPayable: (payable: Omit<Payable, 'id' | 'status'>) => Payable
+  markPayableAsPaid: (id: string) => void
   quotes: Quote[]
   addQuote: (quote: Omit<Quote, 'id' | 'date' | 'status'>) => void
   updateQuote: (id: string, quote: Partial<Quote>, logEdit?: boolean) => void
@@ -410,6 +424,19 @@ const initialPurchases: Purchase[] = [
   },
 ]
 
+const initialPayables: Payable[] = [
+  {
+    id: 'CP-1001',
+    supplierId: '1',
+    supplierName: 'Votorantim Cimentos',
+    description: 'Compra de Estoque C-1001',
+    amount: 2800.0,
+    dueDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // Overdue
+    status: 'Pendente',
+    purchaseId: 'C-1001',
+  },
+]
+
 const initialQuotes: Quote[] = [
   {
     id: 'ORC-1001',
@@ -458,6 +485,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers)
   const [purchases, setPurchases] = useState<Purchase[]>(initialPurchases)
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
+  const [payables, setPayables] = useState<Payable[]>(initialPayables)
   const [quotes, setQuotes] = useState<Quote[]>(initialQuotes)
   const cashbackPercentage = 2
 
@@ -609,7 +637,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPreSales((prev) => prev.filter((p) => p.id !== id))
   }
 
-  const addPurchase = (newPurchase: Omit<Purchase, 'id' | 'date'>) => {
+  const addPurchase = (newPurchase: Omit<Purchase, 'id' | 'date'>): Purchase => {
     const purchase: Purchase = {
       ...newPurchase,
       id: `C-${1000 + purchases.length + 1}`,
@@ -647,6 +675,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       title: 'Entrada Registrada',
       description: 'Estoque atualizado com sucesso.',
     })
+
+    return purchase
+  }
+
+  const addPayable = (payableData: Omit<Payable, 'id' | 'status'>): Payable => {
+    const payable: Payable = {
+      ...payableData,
+      id: `CP-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      status: 'Pendente',
+    }
+    setPayables((prev) => [...prev, payable])
+    return payable
+  }
+
+  const markPayableAsPaid = (id: string) => {
+    setPayables((prev) => prev.map((p) => (p.id === id ? { ...p, status: 'Pago' } : p)))
+    toast({ title: 'Conta Paga', description: 'O pagamento foi registrado com sucesso.' })
   }
 
   const addQuote = (newQuote: Omit<Quote, 'id' | 'date' | 'status'>) => {
@@ -886,6 +931,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         purchases,
         addPurchase,
         purchaseOrders,
+        payables,
+        addPayable,
+        markPayableAsPaid,
         quotes,
         addQuote,
         updateQuote,

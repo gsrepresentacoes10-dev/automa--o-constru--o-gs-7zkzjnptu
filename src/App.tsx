@@ -13,6 +13,7 @@ import Customers from './pages/Customers'
 import Staff from './pages/Staff'
 import Reports from './pages/Reports'
 import Receivables from './pages/Receivables'
+import Payables from './pages/Payables'
 import Suppliers from './pages/Suppliers'
 import Purchases from './pages/Purchases'
 import Quotes from './pages/Quotes'
@@ -44,6 +45,7 @@ const App = () => (
             <Route path="/desempenho" element={<SellerPerformance />} />
             <Route path="/relatorios" element={<Reports />} />
             <Route path="/contas-receber" element={<Receivables />} />
+            <Route path="/contas-a-pagar" element={<Payables />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -9,6 +9,7 @@ import {
   BarChart3,
   HardHat,
   Landmark,
+  Wallet,
   FileText,
   ShoppingBag,
   Truck,
@@ -49,19 +50,30 @@ const menuSections = [
       { title: 'Estoque', url: '/estoque', icon: Package, roles: ['Admin', 'Manager'] },
       { title: 'Compras', url: '/compras', icon: ShoppingBag, roles: ['Admin', 'Manager'] },
       {
-        title: 'Financeiro (A Receber)',
-        url: '/contas-receber',
-        icon: Landmark,
-        roles: ['Admin', 'Manager'],
-      },
-      { title: 'Notas Fiscais', url: '/notas-fiscais', icon: ReceiptText, roles: ['Admin'] },
-      {
         title: 'Desempenho Equipe',
         url: '/desempenho',
         icon: TrendingUp,
         roles: ['Admin', 'Manager'],
       },
       { title: 'Relatórios', url: '/relatorios', icon: BarChart3, roles: ['Admin', 'Manager'] },
+    ],
+  },
+  {
+    label: 'Financeiro',
+    items: [
+      {
+        title: 'Contas a Receber',
+        url: '/contas-receber',
+        icon: Landmark,
+        roles: ['Admin', 'Manager'],
+      },
+      {
+        title: 'Contas a Pagar',
+        url: '/contas-a-pagar',
+        icon: Wallet,
+        roles: ['Admin', 'Manager'],
+      },
+      { title: 'Notas Fiscais', url: '/notas-fiscais', icon: ReceiptText, roles: ['Admin'] },
     ],
   },
   {
