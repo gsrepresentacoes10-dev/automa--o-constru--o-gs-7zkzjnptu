@@ -15,6 +15,7 @@ import {
   Mail,
   Printer,
   LineChart,
+  MessageCircle,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -77,6 +78,8 @@ export default function Purchases() {
 
   // Order Generation State
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false)
+  const [isWhatsappModalOpen, setIsWhatsappModalOpen] = useState(false)
+  const [whatsappSupplierId, setWhatsappSupplierId] = useState('none')
 
   // Forecast State
   const [forecastPeriod, setForecastPeriod] = useState('3') // months
@@ -272,6 +275,14 @@ export default function Purchases() {
     )
   }, [replenishmentData])
 
+  const orderValue = useMemo(() => {
+    return filteredAndSortedData.reduce(
+      (acc, p) =>
+        acc + (p.suggestedPurchase > 0 ? p.suggestedPurchase : p.targetStock) * p.costPrice,
+      0,
+    )
+  }, [filteredAndSortedData])
+
   const forecastData = useMemo(() => {
     const months = parseInt(forecastPeriod, 10)
     const startDate = new Date()
@@ -394,6 +405,41 @@ export default function Purchases() {
       '\n\nFicamos no aguardo do retorno.\n\nAtenciosamente,\nEquipe ConstruMaster'
     const body = encodeURIComponent(bodyText)
     window.location.href = `mailto:?subject=${subject}&body=${body}`
+  }
+
+  const sendOrderWhatsapp = () => {
+    if (whatsappSupplierId === 'none') {
+      toast({ variant: 'destructive', title: 'Selecione um fornecedor para enviar via WhatsApp' })
+      return
+    }
+    const supplier = suppliers.find((s) => s.id === whatsappSupplierId)
+    if (!supplier || !supplier.contact) {
+      toast({
+        variant: 'destructive',
+        title: 'Contato não encontrado',
+        description:
+          'Por favor, atualize o cadastro do fornecedor com um número de telefone válido.',
+      })
+      return
+    }
+
+    const phone = supplier.contact.replace(/\D/g, '')
+    if (!phone || phone.length < 10) {
+      toast({
+        variant: 'destructive',
+        title: 'Telefone inválido',
+        description: 'O número de telefone registrado para este fornecedor é inválido.',
+      })
+      return
+    }
+
+    const itemsText = filteredAndSortedData
+      .map((p) => `- ${p.suggestedPurchase > 0 ? p.suggestedPurchase : p.targetStock}x ${p.name}`)
+      .join('\n')
+    const text = `Olá parceiro(a),\nSomos da ConstruMaster e gostaríamos de solicitar o seguinte pedido de reposição de estoque:\n\n*Itens Solicitados:*\n${itemsText}\n\n*Valor Estimado:* ${formatCurrency(orderValue)}\n\nPor favor, nos confirme a disponibilidade, valores finais e previsão de entrega.\n\nFicamos no aguardo. Obrigado!`
+
+    window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(text)}`, '_blank')
+    setIsWhatsappModalOpen(false)
   }
 
   return (
@@ -885,19 +931,76 @@ export default function Purchases() {
               </ul>
             </div>
           </div>
-          <DialogFooter className="p-4 border-t bg-background shrink-0 print:hidden">
+          <DialogFooter className="p-4 border-t bg-background shrink-0 print:hidden flex-wrap gap-2">
             <Button variant="outline" onClick={() => setIsOrderModalOpen(false)}>
               Fechar
             </Button>
-            <Button
-              variant="outline"
-              onClick={sendOrderEmail}
-              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-            >
-              <Mail className="mr-2 h-4 w-4" /> Enviar por E-mail
+            <div className="flex gap-2 flex-1 justify-end">
+              <Button
+                variant="outline"
+                onClick={sendOrderEmail}
+                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+              >
+                <Mail className="mr-2 h-4 w-4" /> E-mail
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsWhatsappModalOpen(true)}
+                className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+              >
+                <MessageCircle className="mr-2 h-4 w-4" /> Enviar WhatsApp
+              </Button>
+              <Button onClick={printOrder} className="bg-indigo-600 hover:bg-indigo-700">
+                <Printer className="mr-2 h-4 w-4" /> PDF / Imprimir
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isWhatsappModalOpen} onOpenChange={setIsWhatsappModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Enviar via WhatsApp</DialogTitle>
+            <DialogDescription>
+              Selecione o fornecedor que receberá o pedido/cotação atual.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label>Fornecedor Cadastrado</Label>
+              <Select value={whatsappSupplierId} onValueChange={setWhatsappSupplierId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um fornecedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Selecione...</SelectItem>
+                  {suppliers.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {whatsappSupplierId !== 'none' && (
+              <div className="bg-muted p-3 rounded-md text-sm border">
+                <p>
+                  <strong>Contato:</strong>{' '}
+                  {suppliers.find((s) => s.id === whatsappSupplierId)?.contact || 'Não cadastrado'}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Será aberta uma nova guia do WhatsApp Web/Desktop com a mensagem preenchida.
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsWhatsappModalOpen(false)}>
+              Cancelar
             </Button>
-            <Button onClick={printOrder} className="bg-indigo-600 hover:bg-indigo-700">
-              <Printer className="mr-2 h-4 w-4" /> Imprimir / Salvar PDF
+            <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={sendOrderWhatsapp}>
+              <MessageCircle className="w-4 h-4 mr-2" /> Enviar
             </Button>
           </DialogFooter>
         </DialogContent>

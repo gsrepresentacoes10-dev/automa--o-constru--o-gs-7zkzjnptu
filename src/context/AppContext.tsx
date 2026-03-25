@@ -902,8 +902,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (newStock <= p.minStock && p.stock > p.minStock) {
           setTimeout(() => {
             toast({
-              title: 'Alerta de Estoque: Email Enviado',
-              description: `O produto ${p.name} atingiu o estoque mínimo de ${p.minStock}. O setor de compras foi notificado.`,
+              title: 'Alerta de Estoque Baixo',
+              description: `O produto ${p.name} atingiu o nível mínimo (${p.minStock} ${p.unit}). É recomendada a reposição.`,
               variant: 'destructive',
             })
           }, 500)
@@ -982,8 +982,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             if (diff > 0 && newStock <= product.minStock && product.stock > product.minStock) {
               setTimeout(() => {
                 toast({
-                  title: 'Alerta de Estoque: Email Enviado',
-                  description: `O produto ${product.name} atingiu o estoque mínimo de ${product.minStock}.`,
+                  title: 'Alerta de Estoque Baixo',
+                  description: `O produto ${product.name} atingiu o nível mínimo (${product.minStock} ${product.unit}).`,
                   variant: 'destructive',
                 })
               }, 500)

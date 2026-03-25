@@ -13,7 +13,14 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { subDays, subWeeks, subMonths, format, startOfWeek, isSameMonth } from 'date-fns'
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
+import { ptBR } from 'date-fns/locale'
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from '@/components/ui/chart'
 import {
   Bar,
   BarChart,
@@ -28,7 +35,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 
 export default function Index() {
-  const { products, sales, quotes, role, payables } = useAppContext()
+  const { products, sales, quotes, role, payables, purchases } = useAppContext()
 
   if (role === 'Seller') {
     return <Navigate to="/vendas" replace />
@@ -87,6 +94,23 @@ export default function Index() {
     return {
       label: format(date, 'MMM/yy'),
       faturamento: monthSales.reduce((acc, s) => acc + s.total, 0),
+    }
+  })
+
+  const currentYear = new Date().getFullYear()
+  const financialData = Array.from({ length: 12 }).map((_, i) => {
+    const monthSales = sales.filter((s) => {
+      const d = new Date(s.date)
+      return d.getFullYear() === currentYear && d.getMonth() === i && s.status !== 'Cancelado'
+    })
+    const monthPurchases = purchases.filter((p) => {
+      const d = new Date(p.date)
+      return d.getFullYear() === currentYear && d.getMonth() === i
+    })
+    return {
+      month: format(new Date(currentYear, i, 1), 'MMM', { locale: ptBR }),
+      vendas: monthSales.reduce((acc, s) => acc + s.total, 0),
+      compras: monthPurchases.reduce((acc, p) => acc + p.total, 0),
     }
   })
 
@@ -162,6 +186,44 @@ export default function Index() {
         </Card>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Desempenho Financeiro ({currentYear})</CardTitle>
+          <CardDescription>
+            Comparativo de Receitas (Vendas) vs Investimentos (Compras) ao longo do ano.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ChartContainer
+            config={{
+              vendas: { label: 'Receita (Vendas)', color: 'hsl(var(--primary))' },
+              compras: { label: 'Investimento (Compras)', color: 'hsl(var(--destructive))' },
+            }}
+            className="h-[350px] w-full"
+          >
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={financialData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(val) => `R${val / 1000}k`}
+                />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent formatter={(val) => formatCurrency(val as number)} />
+                  }
+                />
+                <ChartLegend content={<ChartLegendContent />} />
+                <Bar dataKey="compras" fill="var(--color-compras)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="vendas" fill="var(--color-vendas)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartContainer>
+        </CardContent>
+      </Card>
+
       <div>
         <h2 className="text-lg font-bold tracking-tight mb-4 mt-2">Status de Orçamentos</h2>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -222,7 +284,7 @@ export default function Index() {
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(val) => `R$${val / 1000}k`}
+                    tickFormatter={(val) => `R${val / 1000}k`}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Bar
@@ -290,7 +352,7 @@ export default function Index() {
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(val) => `R$${val / 1000}k`}
+                    tickFormatter={(val) => `R${val / 1000}k`}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Line
@@ -321,7 +383,7 @@ export default function Index() {
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(val) => `R$${val / 1000}k`}
+                    tickFormatter={(val) => `R${val / 1000}k`}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Bar
