@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
-import { useAppContext } from '@/context/AppContext'
+import { useAppContext, type Payable, type Supplier } from '@/context/AppContext'
 import { formatCurrency, cn } from '@/lib/utils'
-import { Wallet, CheckCircle2, Search, AlertCircle } from 'lucide-react'
+import { Wallet, CheckCircle2, Search, AlertCircle, MessageCircle } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -30,6 +30,32 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+
+const getSanitizedPhone = (phone?: string) => {
+  if (!phone) return ''
+  const digits = phone.replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.length === 10 || digits.length === 11) {
+    return `55${digits}`
+  }
+  return digits
+}
+
+const handleWhatsAppReminder = (payable: Payable, supplier?: Supplier) => {
+  const phone = getSanitizedPhone(supplier?.contact)
+  if (!phone) return
+
+  const formattedAmount = formatCurrency(payable.amount)
+  const formattedDate = payable.dueDate
+    ? new Date(payable.dueDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
+    : '-'
+
+  const message = `Olá, gostaria de lembrar sobre o pagamento de ${payable.description} no valor de ${formattedAmount}, com vencimento em ${formattedDate}.`
+  const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+
+  window.open(url, '_blank')
+}
 
 export default function Payables() {
   const { payables, markPayableAsPaid, suppliers } = useAppContext()
@@ -245,6 +271,10 @@ export default function Payables() {
                 const isOverdue = isPending && payDueDate < today
                 const isDueToday = isPending && payDueDate.getTime() === today.getTime()
 
+                const supplier = suppliers.find((s) => s.id === payable.supplierId)
+                const phone = getSanitizedPhone(supplier?.contact)
+                const hasPhone = !!phone
+
                 return (
                   <TableRow
                     key={payable.id}
@@ -280,31 +310,61 @@ export default function Payables() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      {isPending ? (
-                        <Button
-                          size="sm"
-                          variant={isOverdue ? 'default' : 'outline'}
-                          onClick={() => handleOpenPayment(payable.id)}
-                          className={cn(
-                            isOverdue
-                              ? 'bg-destructive hover:bg-destructive/90 text-white'
-                              : 'hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200',
-                            isDueToday &&
-                              'bg-amber-500 hover:bg-amber-600 text-white border-transparent',
-                          )}
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-1" /> Baixar Pagamento
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-emerald-600 font-medium flex items-center justify-end gap-1">
-                          <CheckCircle2 className="h-3 w-3" /> Liquidado
-                          {payable.paymentDate && (
-                            <span className="text-[10px] text-muted-foreground ml-1">
-                              ({new Date(payable.paymentDate).toLocaleDateString('pt-BR')})
-                            </span>
-                          )}
-                        </span>
-                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        {isPending && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="inline-block">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className={cn(
+                                    'w-9 p-0 border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300',
+                                    !hasPhone && 'opacity-50 pointer-events-none grayscale',
+                                  )}
+                                  onClick={() => {
+                                    if (hasPhone) handleWhatsAppReminder(payable, supplier)
+                                  }}
+                                >
+                                  <MessageCircle className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>
+                                {hasPhone
+                                  ? 'Enviar lembrete via WhatsApp'
+                                  : 'Fornecedor sem telefone cadastrado'}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {isPending ? (
+                          <Button
+                            size="sm"
+                            variant={isOverdue ? 'default' : 'outline'}
+                            onClick={() => handleOpenPayment(payable.id)}
+                            className={cn(
+                              isOverdue
+                                ? 'bg-destructive hover:bg-destructive/90 text-white'
+                                : 'hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200',
+                              isDueToday &&
+                                'bg-amber-500 hover:bg-amber-600 text-white border-transparent',
+                            )}
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-1" /> Baixar Pagamento
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-emerald-600 font-medium flex items-center justify-end gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> Liquidado
+                            {payable.paymentDate && (
+                              <span className="text-[10px] text-muted-foreground ml-1">
+                                ({new Date(payable.paymentDate).toLocaleDateString('pt-BR')})
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
