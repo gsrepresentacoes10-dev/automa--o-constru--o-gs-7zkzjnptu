@@ -12,6 +12,9 @@ import {
   FileText,
   Plus,
   Trash2,
+  Mail,
+  Printer,
+  LineChart,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -33,7 +36,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import {
@@ -44,12 +47,10 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { toast } from '@/hooks/use-toast'
 
 export default function Purchases() {
-  const { products, sales, purchases, suppliers, updateProduct, addPurchase, addPayable } =
-    useAppContext()
+  const { products, sales, suppliers, updateProduct, addPurchase, addPayable } = useAppContext()
 
   // Advanced Procurement Filters
   const [descriptionSearch, setDescriptionSearch] = useState('')
@@ -60,9 +61,6 @@ export default function Purchases() {
   const [purchaseFilter, setPurchaseFilter] = useState<string>('all')
 
   const [leadTimeInputs, setLeadTimeInputs] = useState<Record<string, string>>({})
-  const [historyFrom, setHistoryFrom] = useState('')
-  const [historyTo, setHistoryTo] = useState('')
-  const [historySupplier, setHistorySupplier] = useState('all')
 
   const [isCalcOpen, setIsCalcOpen] = useState(false)
   const [calcProduct, setCalcProduct] = useState<any>(null)
@@ -75,18 +73,37 @@ export default function Purchases() {
     { product: any; quantity: number; costPrice: number }[]
   >([])
   const [installments, setInstallments] = useState<{ dueDate: string; amount: number }[]>([])
+  const [filterCategory, setFilterCategory] = useState('all')
+
+  // Order Generation State
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false)
+
+  // Forecast State
+  const [forecastPeriod, setForecastPeriod] = useState('3') // months
 
   const uniqueBrands = useMemo(() => {
     const brands = products.map((p) => p.brand).filter(Boolean) as string[]
     return Array.from(new Set(brands)).sort()
   }, [products])
 
+  const allCategories = useMemo(() => {
+    const cats = new Set<string>()
+    suppliers.forEach((s) => s.categories?.forEach((c) => cats.add(c)))
+    return Array.from(cats).sort()
+  }, [suppliers])
+
+  const filteredSuppliersForEntry = useMemo(() => {
+    if (filterCategory === 'all') return suppliers
+    return suppliers.filter((s) =>
+      s.categories?.some((c) => c.toLowerCase() === filterCategory.toLowerCase()),
+    )
+  }, [suppliers, filterCategory])
+
   const newPurchaseTotal = useMemo(
     () => purchaseItems.reduce((acc, item) => acc + item.quantity * item.costPrice, 0),
     [purchaseItems],
   )
 
-  // Auto-sync first installment if there's only one
   useEffect(() => {
     if (installments.length <= 1) {
       setInstallments([{ dueDate: installments[0]?.dueDate || '', amount: newPurchaseTotal }])
@@ -255,16 +272,32 @@ export default function Purchases() {
     )
   }, [replenishmentData])
 
-  const filteredPurchases = useMemo(() => {
-    return purchases
-      .filter((p) => {
-        if (historySupplier !== 'all' && p.supplierId !== historySupplier) return false
-        if (historyFrom && new Date(p.date) < new Date(historyFrom + 'T00:00:00')) return false
-        if (historyTo && new Date(p.date) > new Date(historyTo + 'T23:59:59')) return false
-        return true
+  const forecastData = useMemo(() => {
+    const months = parseInt(forecastPeriod, 10)
+    const startDate = new Date()
+    startDate.setMonth(startDate.getMonth() - months)
+
+    return products
+      .map((p) => {
+        const sold = sales.reduce((acc, s) => {
+          if (new Date(s.date) >= startDate && s.status !== 'Cancelado') {
+            const item = s.items.find((i) => i.product.id === p.id)
+            if (item) acc += item.quantity
+          }
+          return acc
+        }, 0)
+
+        const avg = sold / months
+        const suggested = Math.max(0, Math.ceil(avg * 1.5 - p.stock))
+        const suggestedSuppliers = suppliers
+          .filter((s) => s.categories?.some((c) => c.toLowerCase() === p.category.toLowerCase()))
+          .map((s) => s.name)
+          .join(', ')
+
+        return { ...p, sold, avg, suggested, suggestedSuppliers }
       })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [purchases, historyFrom, historyTo, historySupplier])
+      .sort((a, b) => b.suggested - a.suggested)
+  }, [products, sales, suppliers, forecastPeriod])
 
   const addPurchaseItem = (productId: string) => {
     const p = products.find((x) => x.id === productId)
@@ -342,13 +375,62 @@ export default function Purchases() {
     setInstallments([])
   }
 
+  const printOrder = () => {
+    document.body.classList.add('printing-order')
+    window.print()
+    setTimeout(() => document.body.classList.remove('printing-order'), 500)
+  }
+
+  const sendOrderEmail = () => {
+    const subject = encodeURIComponent('Solicitação de Cotação / Pedido de Compra - ConstruMaster')
+    const bodyText =
+      'Olá,\n\nGostaríamos de solicitar cotação e verificar disponibilidade para os seguintes itens:\n\n' +
+      filteredAndSortedData
+        .map(
+          (p) =>
+            `- ${p.name} | Qtd Sugerida: ${p.suggestedPurchase > 0 ? p.suggestedPurchase : p.targetStock} un`,
+        )
+        .join('\n') +
+      '\n\nFicamos no aguardo do retorno.\n\nAtenciosamente,\nEquipe ConstruMaster'
+    const body = encodeURIComponent(bodyText)
+    window.location.href = `mailto:?subject=${subject}&body=${body}`
+  }
+
   return (
     <div className="space-y-6">
+      <style>{`
+        @media print {
+          body.printing-order * {
+            visibility: hidden;
+            color: #000 !important;
+          }
+          body.printing-order .order-print-container,
+          body.printing-order .order-print-container * {
+            visibility: visible;
+          }
+          body.printing-order .order-print-container {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: white !important;
+          }
+          body.printing-order .print\\:hidden {
+            display: none !important;
+          }
+        }
+      `}</style>
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Gestão de Compras</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Planeje reposições e lance novas entradas de mercadoria.
+            Planeje reposições, gere pedidos e lance novas entradas de mercadoria.
           </p>
         </div>
         <Button onClick={() => setIsNewPurchaseOpen(true)}>
@@ -359,7 +441,7 @@ export default function Purchases() {
       <Tabs defaultValue="planejamento" className="space-y-6">
         <TabsList>
           <TabsTrigger value="planejamento">Planejamento de Reposição</TabsTrigger>
-          <TabsTrigger value="historico">Histórico de Compras</TabsTrigger>
+          <TabsTrigger value="previsao">Previsão de Vendas (Forecast)</TabsTrigger>
         </TabsList>
 
         <TabsContent value="planejamento" className="space-y-6">
@@ -432,14 +514,14 @@ export default function Purchases() {
                   </div>
                 </div>
 
-                <div className="w-full sm:w-[200px] space-y-1.5">
+                <div className="w-full sm:w-[150px] space-y-1.5">
                   <Label>Marca</Label>
                   <Select value={brandFilter} onValueChange={setBrandFilter}>
                     <SelectTrigger>
                       <SelectValue placeholder="Marca" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas as Marcas</SelectItem>
+                      <SelectItem value="all">Todas</SelectItem>
                       {uniqueBrands.map((brand) => (
                         <SelectItem key={brand} value={brand}>
                           {brand}
@@ -449,20 +531,20 @@ export default function Purchases() {
                   </Select>
                 </div>
 
-                <div className="w-full sm:w-[180px] space-y-1.5">
+                <div className="w-full sm:w-[150px] space-y-1.5">
                   <Label>Status do Pedido</Label>
                   <Select value={purchaseFilter} onValueChange={setPurchaseFilter}>
                     <SelectTrigger>
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos os Status</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
                       <SelectItem value="sugerido">Sugeridos</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="w-full sm:w-[180px] space-y-1.5">
+                <div className="w-full sm:w-[150px] space-y-1.5">
                   <Label>Ordenar por</Label>
                   <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'urgency' | 'name')}>
                     <SelectTrigger>
@@ -476,19 +558,28 @@ export default function Purchases() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2 bg-background w-fit border px-3 py-2 rounded-md shadow-sm">
-                <Checkbox
-                  id="low-stock-filter"
-                  checked={showLowStock}
-                  onCheckedChange={(c) => setShowLowStock(c as boolean)}
-                />
-                <Label
-                  htmlFor="low-stock-filter"
-                  className="text-sm font-medium cursor-pointer flex items-center gap-1.5"
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-center space-x-2 bg-background w-fit border px-3 py-2 rounded-md shadow-sm">
+                  <Checkbox
+                    id="low-stock-filter"
+                    checked={showLowStock}
+                    onCheckedChange={(c) => setShowLowStock(c as boolean)}
+                  />
+                  <Label
+                    htmlFor="low-stock-filter"
+                    className="text-sm font-medium cursor-pointer flex items-center gap-1.5"
+                  >
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    Estoque Baixo
+                  </Label>
+                </div>
+                <Button
+                  variant={showLowStock ? 'default' : 'outline'}
+                  disabled={filteredAndSortedData.length === 0}
+                  onClick={() => setIsOrderModalOpen(true)}
                 >
-                  <AlertTriangle className="h-4 w-4 text-amber-500" />
-                  Estoque Baixo
-                </Label>
+                  <FileText className="mr-2 h-4 w-4" /> Gerar Pedido de Compra
+                </Button>
               </div>
             </div>
 
@@ -656,90 +747,162 @@ export default function Purchases() {
           </div>
         </TabsContent>
 
-        <TabsContent value="historico" className="space-y-6">
-          <div className="bg-card border rounded-lg shadow-sm overflow-hidden flex flex-col">
-            <div className="p-4 border-b bg-muted/20 flex flex-col md:flex-row gap-4 items-end md:items-center justify-between">
-              <div className="flex flex-col sm:flex-row gap-4 w-full">
-                <div className="flex-1 space-y-1.5">
-                  <Label className="text-xs">Data Inicial</Label>
-                  <Input
-                    type="date"
-                    value={historyFrom}
-                    onChange={(e) => setHistoryFrom(e.target.value)}
-                  />
-                </div>
-                <div className="flex-1 space-y-1.5">
-                  <Label className="text-xs">Data Final</Label>
-                  <Input
-                    type="date"
-                    value={historyTo}
-                    onChange={(e) => setHistoryTo(e.target.value)}
-                  />
-                </div>
-                <div className="flex-1 space-y-1.5">
-                  <Label className="text-xs">Fornecedor</Label>
-                  <Select value={historySupplier} onValueChange={setHistorySupplier}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Fornecedor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      {suppliers.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+        <TabsContent value="previsao" className="space-y-6">
+          <Card>
+            <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b pb-4 bg-muted/20">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <LineChart className="h-5 w-5" /> Previsão de Vendas (Forecast)
+                </CardTitle>
+                <CardDescription>
+                  Avalia o histórico de saída e sugere a compra ideal baseada na média mensal e
+                  margem de segurança.
+                </CardDescription>
               </div>
-            </div>
-
-            <div className="overflow-x-auto">
+              <div className="flex items-center gap-3">
+                <Label className="whitespace-nowrap">Período de Análise:</Label>
+                <Select value={forecastPeriod} onValueChange={setForecastPeriod}>
+                  <SelectTrigger className="w-[140px] bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Último Mês</SelectItem>
+                    <SelectItem value="3">Últimos 3 Meses</SelectItem>
+                    <SelectItem value="6">Últimos 6 Meses</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Número/ID</TableHead>
-                    <TableHead>Fornecedor</TableHead>
-                    <TableHead className="text-center">Qtd Itens</TableHead>
-                    <TableHead className="text-right">Total da Compra</TableHead>
+                    <TableHead className="pl-6">Produto / Categoria</TableHead>
+                    <TableHead className="text-center">Estoque Atual</TableHead>
+                    <TableHead className="text-center">Vendas ({forecastPeriod}m)</TableHead>
+                    <TableHead className="text-center">Média Mensal</TableHead>
+                    <TableHead className="text-center">Sugestão de Compra</TableHead>
+                    <TableHead className="pr-6">Fornecedores Sugeridos</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredPurchases.map((p) => (
+                  {forecastData.map((p) => (
                     <TableRow key={p.id}>
-                      <TableCell className="whitespace-nowrap">
-                        {new Date(p.date).toLocaleDateString('pt-BR')}
+                      <TableCell className="pl-6">
+                        <div className="font-medium">{p.name}</div>
+                        <div className="text-xs text-muted-foreground">{p.category}</div>
                       </TableCell>
-                      <TableCell className="font-medium flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        {p.id}
-                      </TableCell>
-                      <TableCell>{p.supplierName}</TableCell>
+                      <TableCell className="text-center font-medium">{p.stock}</TableCell>
+                      <TableCell className="text-center">{p.sold}</TableCell>
+                      <TableCell className="text-center">{p.avg.toFixed(1)}</TableCell>
                       <TableCell className="text-center">
-                        {p.items.reduce((acc, i) => acc + i.quantity, 0)} un
+                        <Badge
+                          variant={p.suggested > 0 ? 'default' : 'outline'}
+                          className={p.suggested > 0 ? 'bg-primary' : 'text-muted-foreground'}
+                        >
+                          {p.suggested} un
+                        </Badge>
                       </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(p.total)}
+                      <TableCell className="pr-6">
+                        <span
+                          className="text-xs text-muted-foreground line-clamp-2 max-w-[200px]"
+                          title={p.suggestedSuppliers}
+                        >
+                          {p.suggestedSuppliers || '-'}
+                        </span>
                       </TableCell>
                     </TableRow>
                   ))}
-                  {filteredPurchases.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                        Nenhuma compra finalizada encontrada para os filtros aplicados.
-                      </TableCell>
-                    </TableRow>
-                  )}
                 </TableBody>
               </Table>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
-      {/* New Purchase Dialog */}
+      <Dialog open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 order-print-container bg-white">
+          <DialogHeader className="p-6 border-b shrink-0 print:hidden">
+            <DialogTitle>Gerar Pedido de Compra</DialogTitle>
+            <DialogDescription>
+              Documento formatado para solicitar cotação ou enviar pedido aos fornecedores.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="p-8 flex-1 overflow-auto bg-white text-black">
+            <div className="flex justify-between items-start border-b-2 border-gray-200 pb-4 mb-6">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight">PEDIDO DE COMPRA / COTAÇÃO</h2>
+                <p className="text-sm text-gray-500 mt-1">ConstruMaster Materiais de Construção</p>
+                <p className="text-sm text-gray-500">CNPJ: 12.345.678/0001-90</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-semibold">
+                  Data: {new Date().toLocaleDateString('pt-BR')}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Ref: Solicitação de Reposição</p>
+              </div>
+            </div>
+
+            <p className="text-sm mb-4">
+              Aos cuidados do departamento comercial/vendas, solicitamos a cotação/pedido dos itens
+              listados abaixo:
+            </p>
+
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border p-2 text-left text-sm font-semibold">
+                    Produto / Descrição
+                  </th>
+                  <th className="border p-2 text-left text-sm font-semibold">Marca/Ref</th>
+                  <th className="border p-2 text-center text-sm font-semibold w-24">Qtd. Atual</th>
+                  <th className="border p-2 text-center text-sm font-semibold w-24">
+                    Qtd. Solicitada
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAndSortedData.map((p) => (
+                  <tr key={p.id} className="hover:bg-gray-50">
+                    <td className="border p-2 text-sm">
+                      {p.name} <span className="text-xs text-gray-500 block">SKU: {p.sku}</span>
+                    </td>
+                    <td className="border p-2 text-sm">{p.brand || '-'}</td>
+                    <td className="border p-2 text-sm text-center">{p.stock}</td>
+                    <td className="border p-2 text-sm text-center font-bold">
+                      {p.suggestedPurchase > 0 ? p.suggestedPurchase : p.targetStock}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="mt-8 pt-4 border-t border-dashed text-sm text-gray-600">
+              <p>Observações:</p>
+              <ul className="list-disc pl-5 mt-2 text-xs">
+                <li>Por favor, informar prazos de entrega e condições de pagamento na cotação.</li>
+                <li>Valores sujeitos a aprovação da diretoria antes do faturamento.</li>
+              </ul>
+            </div>
+          </div>
+          <DialogFooter className="p-4 border-t bg-background shrink-0 print:hidden">
+            <Button variant="outline" onClick={() => setIsOrderModalOpen(false)}>
+              Fechar
+            </Button>
+            <Button
+              variant="outline"
+              onClick={sendOrderEmail}
+              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            >
+              <Mail className="mr-2 h-4 w-4" /> Enviar por E-mail
+            </Button>
+            <Button onClick={printOrder} className="bg-indigo-600 hover:bg-indigo-700">
+              <Printer className="mr-2 h-4 w-4" /> Imprimir / Salvar PDF
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isNewPurchaseOpen} onOpenChange={setIsNewPurchaseOpen}>
         <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-6 border-b shrink-0 bg-muted/10">
@@ -753,21 +916,39 @@ export default function Purchases() {
 
           <div className="flex-1 overflow-auto flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x">
             <div className="flex-1 p-6 space-y-6 bg-card">
-              <div className="space-y-2">
-                <Label>Fornecedor</Label>
-                <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o Fornecedor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Selecione...</SelectItem>
-                    {suppliers.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name} ({s.document})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Filtrar Fornecedores por Categoria</Label>
+                  <Select value={filterCategory} onValueChange={setFilterCategory}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Todas as categorias" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {allCategories.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Fornecedor</Label>
+                  <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o Fornecedor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Selecione...</SelectItem>
+                      {filteredSuppliersForEntry.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-3">

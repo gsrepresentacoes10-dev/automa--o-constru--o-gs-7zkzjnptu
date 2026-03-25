@@ -36,12 +36,21 @@ export default function Suppliers() {
   const handleAdd = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const formData = new FormData(e.currentTarget)
+
+    const categoriesStr = formData.get('categories') as string
+    const categories = categoriesStr
+      ? categoriesStr
+          .split(',')
+          .map((c) => c.trim())
+          .filter(Boolean)
+      : []
+
     const newSupplier: Supplier = {
       id: Date.now().toString(),
       name: formData.get('name') as string,
       document: formData.get('document') as string,
       contact: formData.get('contact') as string,
-      category: formData.get('category') as string,
+      categories,
     }
     setSuppliers([...suppliers, newSupplier])
     setIsAdding(false)
@@ -76,8 +85,8 @@ export default function Suppliers() {
                   <Input name="document" required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Categoria</Label>
-                  <Input name="category" placeholder="Ex: Cimentos, Hidráulica" />
+                  <Label>Categorias Atendidas (separadas por vírgula)</Label>
+                  <Input name="categories" placeholder="Ex: Básico, Hidráulica, Elétrica" />
                 </div>
                 <div className="space-y-2">
                   <Label>Contato / Telefone</Label>
@@ -113,7 +122,7 @@ export default function Suppliers() {
           <TableHeader>
             <TableRow>
               <TableHead>Fornecedor</TableHead>
-              <TableHead>Categoria</TableHead>
+              <TableHead>Categorias</TableHead>
               <TableHead>CNPJ / CPF</TableHead>
               <TableHead>Contato</TableHead>
             </TableRow>
@@ -127,7 +136,9 @@ export default function Suppliers() {
                   </div>
                   {s.name}
                 </TableCell>
-                <TableCell>{s.category || '-'}</TableCell>
+                <TableCell className="max-w-[200px] truncate" title={s.categories?.join(', ')}>
+                  {s.categories?.join(', ') || '-'}
+                </TableCell>
                 <TableCell>{s.document}</TableCell>
                 <TableCell>{s.contact}</TableCell>
               </TableRow>

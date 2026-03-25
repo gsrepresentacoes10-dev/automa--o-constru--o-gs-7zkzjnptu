@@ -17,6 +17,7 @@ import {
   Tags,
   Boxes,
   LineChart,
+  History,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -50,6 +51,12 @@ const menuSections = [
       },
       { title: 'Estoque', url: '/estoque', icon: Package, roles: ['Admin', 'Manager'] },
       { title: 'Compras', url: '/compras', icon: ShoppingBag, roles: ['Admin', 'Manager'] },
+      {
+        title: 'Histórico de Compras',
+        url: '/historico-compras',
+        icon: History,
+        roles: ['Admin', 'Manager'],
+      },
       {
         title: 'Desempenho Equipe',
         url: '/desempenho',

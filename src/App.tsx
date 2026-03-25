@@ -16,6 +16,7 @@ import Receivables from './pages/Receivables'
 import Payables from './pages/Payables'
 import Suppliers from './pages/Suppliers'
 import Purchases from './pages/Purchases'
+import PurchaseHistory from './pages/PurchaseHistory'
 import Quotes from './pages/Quotes'
 import Sellers from './pages/Sellers'
 import SellerPerformance from './pages/SellerPerformance'
@@ -38,6 +39,7 @@ const App = () => (
             <Route path="/vendas" element={<Sales />} />
             <Route path="/orcamentos" element={<Quotes />} />
             <Route path="/compras" element={<Purchases />} />
+            <Route path="/historico-compras" element={<PurchaseHistory />} />
             <Route path="/fornecedores" element={<Suppliers />} />
             <Route path="/notas-fiscais" element={<Invoices />} />
             <Route path="/clientes" element={<Customers />} />

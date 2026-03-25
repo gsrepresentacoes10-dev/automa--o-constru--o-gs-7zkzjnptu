@@ -101,7 +101,7 @@ export interface Supplier {
   name: string
   document: string
   contact: string
-  category?: string
+  categories?: string[]
 }
 
 export interface PurchaseItem {
@@ -455,7 +455,14 @@ const initialSuppliers: Supplier[] = [
     name: 'Votorantim Cimentos',
     document: '00.000.000/0001-91',
     contact: '(11) 4000-0000',
-    category: 'Cimentos e Argamassas',
+    categories: ['Cimentos e Argamassas', 'Básico'],
+  },
+  {
+    id: '2',
+    name: 'Tigre Tubos e Conexões',
+    document: '11.111.111/0001-11',
+    contact: '(11) 3000-1111',
+    categories: ['Hidráulica'],
   },
 ]
 
