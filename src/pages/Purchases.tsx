@@ -16,6 +16,7 @@ import {
   Printer,
   LineChart,
   MessageCircle,
+  Check,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -35,6 +36,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableFooter,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -80,6 +82,17 @@ export default function Purchases() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false)
   const [isWhatsappModalOpen, setIsWhatsappModalOpen] = useState(false)
   const [whatsappSupplierId, setWhatsappSupplierId] = useState('none')
+
+  // Auto Quote State
+  const [isAutoQuoteOpen, setIsAutoQuoteOpen] = useState(false)
+  const [quoteStep, setQuoteStep] = useState<'select' | 'compare'>('select')
+  const [selectedQuoteSuppliers, setSelectedQuoteSuppliers] = useState<string[]>([])
+  const [mockedQuotes, setMockedQuotes] = useState<
+    Record<
+      string,
+      { total: number; items: Record<string, { unitPrice: number; subtotal: number }> }
+    >
+  >({})
 
   // Forecast State
   const [forecastPeriod, setForecastPeriod] = useState('3') // months
@@ -442,6 +455,64 @@ export default function Purchases() {
     setIsWhatsappModalOpen(false)
   }
 
+  // --- Auto Quote Integration ---
+  const requiredCategories = useMemo(() => {
+    const cats = new Set<string>()
+    filteredAndSortedData.forEach((p) => {
+      if (p.category) cats.add(p.category.toLowerCase())
+    })
+    return Array.from(cats)
+  }, [filteredAndSortedData])
+
+  const displaySuppliersForQuote = useMemo(() => {
+    const eligible = suppliers.filter((s) =>
+      s.categories?.some((c) => requiredCategories.includes(c.toLowerCase())),
+    )
+    return eligible.length > 0 ? eligible : suppliers
+  }, [suppliers, requiredCategories])
+
+  const openAutoQuote = () => {
+    setSelectedQuoteSuppliers(displaySuppliersForQuote.map((s) => s.id))
+    setQuoteStep('select')
+    setIsAutoQuoteOpen(true)
+  }
+
+  const handleGenerateQuotes = () => {
+    const quotes: Record<
+      string,
+      { total: number; items: Record<string, { unitPrice: number; subtotal: number }> }
+    > = {}
+
+    selectedQuoteSuppliers.forEach((suppId) => {
+      let total = 0
+      const items: Record<string, { unitPrice: number; subtotal: number }> = {}
+
+      filteredAndSortedData.forEach((p) => {
+        const qty = p.suggestedPurchase > 0 ? p.suggestedPurchase : p.targetStock
+        if (qty === 0) return
+        const variation = Math.random() * 0.3 - 0.15 // -15% to +15% variation
+        const unitPrice = p.costPrice > 0 ? p.costPrice * (1 + variation) : 10 * (1 + variation)
+        const subtotal = unitPrice * qty
+        items[p.id] = { unitPrice, subtotal }
+        total += subtotal
+      })
+      quotes[suppId] = { total, items }
+    })
+
+    setMockedQuotes(quotes)
+    setQuoteStep('compare')
+  }
+
+  const handleSelectWinner = (suppId: string) => {
+    setIsAutoQuoteOpen(false)
+    setWhatsappSupplierId(suppId)
+    setIsWhatsappModalOpen(true)
+    toast({
+      title: 'Cotação Aprovada',
+      description: 'Você pode agora enviar o pedido final ao fornecedor.',
+    })
+  }
+
   return (
     <div className="space-y-6">
       <style>{`
@@ -622,7 +693,7 @@ export default function Purchases() {
                 <Button
                   variant={showLowStock ? 'default' : 'outline'}
                   disabled={filteredAndSortedData.length === 0}
-                  onClick={() => setIsOrderModalOpen(true)}
+                  onClick={openAutoQuote}
                 >
                   <FileText className="mr-2 h-4 w-4" /> Gerar Pedido de Compra
                 </Button>
@@ -866,10 +937,213 @@ export default function Purchases() {
         </TabsContent>
       </Tabs>
 
+      <Dialog open={isAutoQuoteOpen} onOpenChange={setIsAutoQuoteOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-background">
+          <DialogHeader className="p-6 border-b shrink-0">
+            <DialogTitle>Cotação Automática de Pedido</DialogTitle>
+            <DialogDescription>
+              {quoteStep === 'select'
+                ? 'Selecione os fornecedores para enviar o pedido de cotação. Sugerimos os que atendem às categorias dos produtos listados.'
+                : 'Compare os valores simulados recebidos dos fornecedores selecionados e escolha a melhor opção.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-auto p-6 bg-muted/10">
+            {quoteStep === 'select' && (
+              <div className="space-y-6">
+                <div className="bg-card p-4 rounded-lg border shadow-sm space-y-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-2">
+                    <AlertCircle className="w-4 h-4 text-primary" />
+                    Fornecedores Elegíveis Encontrados
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {displaySuppliersForQuote.map((supplier) => (
+                      <div
+                        key={supplier.id}
+                        className="flex items-start space-x-3 border p-3 rounded-md bg-background hover:bg-muted/50 transition-colors"
+                      >
+                        <Checkbox
+                          id={`quote-supp-${supplier.id}`}
+                          className="mt-0.5"
+                          checked={selectedQuoteSuppliers.includes(supplier.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedQuoteSuppliers((prev) => [...prev, supplier.id])
+                            } else {
+                              setSelectedQuoteSuppliers((prev) =>
+                                prev.filter((id) => id !== supplier.id),
+                              )
+                            }
+                          }}
+                        />
+                        <div className="flex flex-col flex-1 leading-none">
+                          <Label
+                            htmlFor={`quote-supp-${supplier.id}`}
+                            className="cursor-pointer font-medium text-sm"
+                          >
+                            {supplier.name}
+                          </Label>
+                          <span
+                            className="text-[11px] text-muted-foreground mt-1.5 line-clamp-1"
+                            title={supplier.categories?.join(', ')}
+                          >
+                            {supplier.categories?.join(', ') || 'Sem categoria'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {quoteStep === 'compare' && (
+              <div className="bg-card border rounded-lg shadow-sm">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow>
+                        <TableHead className="min-w-[200px] border-r">Produto</TableHead>
+                        <TableHead className="text-center w-[80px] border-r">Qtd</TableHead>
+                        {selectedQuoteSuppliers.map((sId) => (
+                          <TableHead key={sId} className="text-right min-w-[140px]">
+                            {suppliers.find((s) => s.id === sId)?.name}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAndSortedData.map((p) => {
+                        const qty = p.suggestedPurchase > 0 ? p.suggestedPurchase : p.targetStock
+                        if (qty === 0) return null
+                        return (
+                          <TableRow key={p.id}>
+                            <TableCell className="border-r">
+                              <div
+                                className="font-medium text-sm truncate max-w-[250px]"
+                                title={p.name}
+                              >
+                                {p.name}
+                              </div>
+                              <div className="text-xs text-muted-foreground">{p.brand || '-'}</div>
+                            </TableCell>
+                            <TableCell className="text-center border-r bg-muted/10 font-medium">
+                              {qty}
+                            </TableCell>
+                            {selectedQuoteSuppliers.map((sId) => (
+                              <TableCell key={sId} className="text-right">
+                                <div className="font-medium">
+                                  {formatCurrency(mockedQuotes[sId]?.items[p.id]?.subtotal || 0)}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5">
+                                  {formatCurrency(mockedQuotes[sId]?.items[p.id]?.unitPrice || 0)}{' '}
+                                  un
+                                </div>
+                              </TableCell>
+                            ))}
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                    <TableFooter className="bg-muted/20">
+                      <TableRow>
+                        <TableCell
+                          colSpan={2}
+                          className="text-right font-semibold text-sm py-6 border-r"
+                        >
+                          TOTAL DA COTAÇÃO
+                        </TableCell>
+                        {selectedQuoteSuppliers.map((sId) => {
+                          const isLowest =
+                            Object.values(mockedQuotes).length > 0 &&
+                            Object.values(mockedQuotes).every(
+                              (q) => q.total >= mockedQuotes[sId].total,
+                            )
+                          return (
+                            <TableCell
+                              key={sId}
+                              className={cn(
+                                'text-right align-top py-4 border-b-2',
+                                isLowest
+                                  ? 'border-emerald-500 bg-emerald-50/50'
+                                  : 'border-transparent',
+                              )}
+                            >
+                              <div
+                                className={cn(
+                                  'text-lg font-bold',
+                                  isLowest ? 'text-emerald-700' : 'text-foreground',
+                                )}
+                              >
+                                {formatCurrency(mockedQuotes[sId]?.total || 0)}
+                              </div>
+                              {isLowest && (
+                                <div className="text-xs font-semibold text-emerald-600 mb-2 mt-1 flex items-center justify-end gap-1">
+                                  <Check className="h-3 w-3" /> Melhor Oferta
+                                </div>
+                              )}
+                              {!isLowest && <div className="h-5 mb-2 mt-1" />}
+                              <Button
+                                size="sm"
+                                className="w-full mt-2"
+                                variant={isLowest ? 'default' : 'secondary'}
+                                onClick={() => handleSelectWinner(sId)}
+                              >
+                                Selecionar
+                              </Button>
+                            </TableCell>
+                          )
+                        })}
+                      </TableRow>
+                    </TableFooter>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="p-4 border-t bg-background shrink-0 flex-wrap gap-2">
+            {quoteStep === 'select' ? (
+              <>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setIsAutoQuoteOpen(false)
+                    setIsOrderModalOpen(true)
+                  }}
+                >
+                  <Printer className="w-4 h-4 mr-2" /> Impressão Direta do Pedido
+                </Button>
+                <div className="flex-1" />
+                <Button variant="outline" onClick={() => setIsAutoQuoteOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleGenerateQuotes}
+                  disabled={selectedQuoteSuppliers.length === 0}
+                >
+                  Gerar Comparativo
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setQuoteStep('select')}>
+                  Voltar
+                </Button>
+                <div className="flex-1" />
+                <Button variant="outline" onClick={() => setIsAutoQuoteOpen(false)}>
+                  Cancelar
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 order-print-container bg-white">
           <DialogHeader className="p-6 border-b shrink-0 print:hidden">
-            <DialogTitle>Gerar Pedido de Compra</DialogTitle>
+            <DialogTitle>Imprimir Pedido de Compra</DialogTitle>
             <DialogDescription>
               Documento formatado para solicitar cotação ou enviar pedido aos fornecedores.
             </DialogDescription>
@@ -942,13 +1216,6 @@ export default function Purchases() {
                 className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
               >
                 <Mail className="mr-2 h-4 w-4" /> E-mail
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => setIsWhatsappModalOpen(true)}
-                className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-              >
-                <MessageCircle className="mr-2 h-4 w-4" /> Enviar WhatsApp
               </Button>
               <Button onClick={printOrder} className="bg-indigo-600 hover:bg-indigo-700">
                 <Printer className="mr-2 h-4 w-4" /> PDF / Imprimir
