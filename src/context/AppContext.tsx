@@ -121,6 +121,7 @@ export interface PurchaseOrder {
   quantity: number
   expectedDeliveryDate: string
   documentName?: string
+  documentUrl?: string
   status: 'Aguardando Chegada' | 'Entrada Realizada'
   createdAt: string
 }
@@ -406,6 +407,7 @@ const initialPurchaseOrders: PurchaseOrder[] = [
     quantity: 100,
     expectedDeliveryDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
     documentName: 'pedido_cimento_01.pdf',
+    documentUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', // Mock document
     status: 'Aguardando Chegada',
     createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
   },

@@ -1,7 +1,16 @@
 import { useState, useMemo } from 'react'
 import { useAppContext, Product, MovementType } from '@/context/AppContext'
 import { formatCurrency } from '@/lib/utils'
-import { Search, AlertTriangle, Camera, AlertOctagon, History, Plus } from 'lucide-react'
+import {
+  Search,
+  AlertTriangle,
+  Camera,
+  AlertOctagon,
+  History,
+  Plus,
+  Truck,
+  FileText,
+} from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Input } from '@/components/ui/input'
@@ -43,7 +52,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
 
 export default function Inventory() {
-  const { products, stockMovements, addManualStockAdjustment } = useAppContext()
+  const { products, stockMovements, addManualStockAdjustment, purchaseOrders } = useAppContext()
   const [searchTerm, setSearchTerm] = useState('')
   const [showCriticalOnly, setShowCriticalOnly] = useState(false)
   const [isScannerOpen, setIsScannerOpen] = useState(false)
@@ -172,6 +181,10 @@ export default function Inventory() {
                 const isOutOfStock = product.stock === 0
                 const isLow = !isOutOfStock && product.stock <= product.minStock
 
+                const pendingOrder = purchaseOrders.find(
+                  (po) => po.productId === product.id && po.status === 'Aguardando Chegada',
+                )
+
                 return (
                   <TableRow
                     key={product.id}
@@ -202,29 +215,67 @@ export default function Inventory() {
                     <TableCell className="text-right font-medium">
                       {formatCurrency(product.price)}
                     </TableCell>
-                    <TableCell className="text-center">
-                      <span className={isOutOfStock || isLow ? 'font-bold text-destructive' : ''}>
-                        {product.stock}
-                      </span>{' '}
-                      <span className="text-xs text-muted-foreground">{product.unit}</span>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        Mín: {product.minStock}
-                      </p>
+                    <TableCell className="text-center align-middle">
+                      <div className="flex flex-col items-center justify-center">
+                        <div>
+                          <span
+                            className={cn(
+                              'text-base',
+                              isOutOfStock || isLow ? 'font-bold text-destructive' : '',
+                            )}
+                          >
+                            {product.stock}
+                          </span>{' '}
+                          <span className="text-xs text-muted-foreground">{product.unit}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          Mín: {product.minStock}
+                        </p>
+                      </div>
                     </TableCell>
                     <TableCell className="text-center">
-                      {isOutOfStock ? (
-                        <div className="flex items-center justify-center text-white text-xs font-bold gap-1 bg-destructive py-1 px-2 rounded-md w-fit mx-auto shadow-sm">
-                          <AlertOctagon className="h-3 w-3" /> Sem Estoque
-                        </div>
-                      ) : isLow ? (
-                        <div className="flex items-center justify-center text-amber-700 text-xs font-bold gap-1 bg-amber-100 py-1 px-2 rounded-full w-fit mx-auto border border-amber-200">
-                          <AlertTriangle className="h-3 w-3" /> Estoque Baixo
-                        </div>
-                      ) : (
-                        <span className="text-emerald-600 text-sm font-medium">Normal</span>
-                      )}
+                      <div className="flex flex-col items-center gap-2">
+                        {isOutOfStock ? (
+                          <div className="flex items-center justify-center text-white text-xs font-bold gap-1 bg-destructive py-1 px-2 rounded-md w-fit mx-auto shadow-sm">
+                            <AlertOctagon className="h-3 w-3" /> Sem Estoque
+                          </div>
+                        ) : isLow ? (
+                          <div className="flex items-center justify-center text-amber-700 text-xs font-bold gap-1 bg-amber-100 py-1 px-2 rounded-full w-fit mx-auto border border-amber-200">
+                            <AlertTriangle className="h-3 w-3" /> Estoque Baixo
+                          </div>
+                        ) : (
+                          <span className="text-emerald-600 text-sm font-medium">Normal</span>
+                        )}
+
+                        {pendingOrder && (
+                          <div className="flex flex-col items-center gap-1 border-t pt-2 mt-1 w-full max-w-[140px]">
+                            <Badge
+                              variant="secondary"
+                              className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] py-0.5 whitespace-nowrap"
+                            >
+                              <Truck className="w-3 h-3 mr-1" />
+                              Chega:{' '}
+                              {new Date(pendingOrder.expectedDeliveryDate).toLocaleDateString(
+                                'pt-BR',
+                              )}
+                            </Badge>
+                            {pendingOrder.documentUrl && (
+                              <a
+                                href={pendingOrder.documentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline flex items-center justify-center gap-1 w-full truncate"
+                                title="Ver comprovante do pedido"
+                              >
+                                <FileText className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">Ver Pedido</span>
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right align-middle">
                       <Button
                         variant="ghost"
                         size="sm"

@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   Clock,
   CalendarIcon,
+  FileText,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -195,11 +196,15 @@ export default function Purchases() {
       })
       return
     }
+
+    const fileUrl = URL.createObjectURL(orderFile)
+
     addPurchaseOrder({
       productId: selectedProduct.id,
       quantity: orderQuantity,
       expectedDeliveryDate: expectedDate.toISOString(),
       documentName: orderFile.name,
+      documentUrl: fileUrl,
     })
     setIsOrderModalOpen(false)
   }
@@ -402,7 +407,7 @@ export default function Purchases() {
                           className="h-7 text-xs w-full max-w-[140px]"
                           onClick={() => openOrderModal(item)}
                         >
-                          Fazer Pedido
+                          Registrar Pedido
                         </Button>
                       </div>
                     )}
@@ -414,9 +419,9 @@ export default function Purchases() {
                         >
                           <Clock className="w-3 h-3 mr-1" /> Aguardando Chegada
                         </Badge>
-                        <div className="text-[10px] text-muted-foreground flex flex-col items-center w-full">
+                        <div className="text-[10px] text-muted-foreground flex flex-col items-center w-full gap-0.5">
                           <span>Qtd: {item.orderInfo?.quantity} un</span>
-                          <span>
+                          <span className="font-medium text-amber-900">
                             Prev:{' '}
                             {item.orderInfo?.expectedDeliveryDate &&
                               new Date(item.orderInfo.expectedDeliveryDate).toLocaleDateString(
@@ -424,18 +429,22 @@ export default function Purchases() {
                               )}
                           </span>
                           {item.orderInfo?.documentName && (
-                            <span
-                              className="text-blue-600 truncate max-w-[150px] mt-0.5"
+                            <a
+                              href={item.orderInfo.documentUrl || '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 hover:underline truncate max-w-[150px] flex items-center justify-center gap-1 bg-blue-50 px-1.5 py-0.5 rounded mt-1"
                               title={item.orderInfo.documentName}
                             >
-                              📄 {item.orderInfo.documentName}
-                            </span>
+                              <FileText className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate">{item.orderInfo.documentName}</span>
+                            </a>
                           )}
                         </div>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-7 text-xs w-full max-w-[140px]"
+                          className="h-7 text-xs w-full max-w-[140px] mt-1"
                           onClick={() => handleReceiveOrder(item, item.orderInfo)}
                         >
                           Simular Entrada (NF)
@@ -448,7 +457,7 @@ export default function Purchases() {
                           variant="secondary"
                           className="bg-emerald-100 text-emerald-800 border-emerald-200 whitespace-nowrap"
                         >
-                          <CheckCircle2 className="w-3 h-3 mr-1" /> Entrada Realizada
+                          <CheckCircle2 className="w-3 h-3 mr-1" /> Recebido
                         </Badge>
                         <span className="text-[10px] text-muted-foreground">
                           Última Entrada: {item.orderInfo?.quantity} un
@@ -478,7 +487,7 @@ export default function Purchases() {
       <Dialog open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Fazer Pedido de Compra</DialogTitle>
+            <DialogTitle>Registrar Pedido de Compra</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -554,7 +563,7 @@ export default function Purchases() {
             <Button variant="outline" onClick={() => setIsOrderModalOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handlePlaceOrder}>Confirmar Pedido</Button>
+            <Button onClick={handlePlaceOrder}>Salvar Registro</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
