@@ -52,6 +52,7 @@ export default function Receivables() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [clientSearch, setClientSearch] = useState('')
 
   const [configuringSaleId, setConfiguringSaleId] = useState<string | null>(null)
   const [reminderActive, setReminderActive] = useState(false)
@@ -78,12 +79,17 @@ export default function Receivables() {
         if (dateTo && new Date(sale.date) > new Date(new Date(dateTo).setHours(23, 59, 59, 999)))
           return false
 
+        if (clientSearch.trim()) {
+          const cName = sale.customer?.toLowerCase() || ''
+          if (!cName.includes(clientSearch.trim().toLowerCase())) return false
+        }
+
         return true
       })
       .sort(
         (a, b) => new Date(a.dueDate || a.date).getTime() - new Date(b.dueDate || b.date).getTime(),
       )
-  }, [creditSales, statusFilter, dateFrom, dateTo])
+  }, [creditSales, statusFilter, dateFrom, dateTo, clientSearch])
 
   const pendingTotal = filteredReceivables
     .filter((s) => s.status === 'Pendente')
@@ -202,8 +208,20 @@ export default function Receivables() {
       </div>
 
       <Card>
-        <div className="p-4 border-b flex flex-col md:flex-row gap-4 bg-muted/20">
-          <div className="space-y-1.5 flex-1 max-w-xs">
+        <div className="p-4 border-b flex flex-col lg:flex-row gap-4 bg-muted/20 items-end">
+          <div className="space-y-1.5 flex-1 w-full lg:max-w-[250px]">
+            <Label className="text-xs text-muted-foreground">Buscar Cliente</Label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Nome do cliente..."
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5 flex-1 w-full lg:max-w-[200px]">
             <Label className="text-xs text-muted-foreground">Status do Pagamento</Label>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger>
@@ -217,21 +235,22 @@ export default function Receivables() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 w-full lg:w-auto">
             <Label className="text-xs text-muted-foreground">Data Inicial (Venda)</Label>
             <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 w-full lg:w-auto">
             <Label className="text-xs text-muted-foreground">Data Final (Venda)</Label>
             <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
           </div>
-          <div className="flex items-end">
+          <div className="flex items-end w-full lg:w-auto justify-end">
             <Button
               variant="ghost"
               onClick={() => {
                 setStatusFilter('all')
                 setDateFrom('')
                 setDateTo('')
+                setClientSearch('')
               }}
             >
               Limpar Filtros

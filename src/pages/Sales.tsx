@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   useAppContext,
   Product,
@@ -26,6 +26,7 @@ import {
   RotateCcw,
   Gift,
   Camera,
+  ShieldAlert,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -73,6 +74,8 @@ export default function Sales() {
     addPreSale,
     updatePreSale,
     deletePreSale,
+    role,
+    maxDiscountPercentage,
   } = useAppContext()
 
   const [activeTab, setActiveTab] = useState('pdv')
@@ -98,6 +101,18 @@ export default function Sales() {
   const [receiptSale, setReceiptSale] = useState<Sale | null>(null)
   const [whatsappSale, setWhatsappSale] = useState<Sale | null>(null)
   const [whatsappPhone, setWhatsappPhone] = useState('')
+
+  const [isDiscountApproved, setIsDiscountApproved] = useState(false)
+  const [managerPassword, setManagerPassword] = useState('')
+  const [pixConfirmed, setPixConfirmed] = useState(false)
+
+  useEffect(() => {
+    if (isCheckoutOpen) {
+      setIsDiscountApproved(false)
+      setManagerPassword('')
+      setPixConfirmed(false)
+    }
+  }, [isCheckoutOpen])
 
   const filteredProducts = products.filter(
     (p) =>
@@ -209,6 +224,11 @@ export default function Sales() {
   const finalTotal = cartTotalWithDiscount - appliedCashback
   const cashbackEarned = finalTotal * (cashbackPercentage / 100)
 
+  const discountPercentage = cartTotal > 0 ? (calculatedDiscount / cartTotal) * 100 : 0
+  const requiresApproval = discountPercentage > maxDiscountPercentage
+  const canCheckout =
+    (!requiresApproval || isDiscountApproved) && (paymentMethod !== 'PIX' || pixConfirmed)
+
   const handleSavePreSale = () => {
     if (!preSaleCustomerName.trim()) {
       toast({ variant: 'destructive', title: 'Informe o nome do cliente' })
@@ -249,6 +269,22 @@ export default function Sales() {
   }
 
   const handleCheckout = () => {
+    if (requiresApproval && !isDiscountApproved) {
+      toast({
+        variant: 'destructive',
+        title: 'Autorização Necessária',
+        description: 'Libere o desconto antes de finalizar.',
+      })
+      return
+    }
+    if (paymentMethod === 'PIX' && !pixConfirmed) {
+      toast({
+        variant: 'destructive',
+        title: 'Aguardando PIX',
+        description: 'Confirme o recebimento do PIX antes de finalizar.',
+      })
+      return
+    }
     if (paymentMethod === 'Venda a Prazo' && selectedCustomerId === 'none') {
       toast({
         variant: 'destructive',
@@ -797,6 +833,65 @@ export default function Sales() {
             <DialogTitle>Finalizar Venda</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {requiresApproval && !isDiscountApproved && (
+              <div className="bg-orange-50 border border-orange-200 p-4 rounded-lg animate-in fade-in zoom-in-95">
+                <div className="flex gap-2 text-orange-800 font-bold mb-2 items-center">
+                  <ShieldAlert className="w-5 h-5" />
+                  Bloqueio de Segurança
+                </div>
+                <p className="text-sm text-orange-700 mb-4">
+                  O desconto de {discountPercentage.toFixed(1)}% excede o limite permitido de{' '}
+                  {maxDiscountPercentage}%.
+                </p>
+
+                {role === 'Seller' ? (
+                  <div className="flex flex-col gap-2">
+                    <Label className="text-orange-900 text-xs font-semibold">
+                      Senha do Gerente (Use: 1234)
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="password"
+                        className="bg-white border-orange-200 h-9"
+                        placeholder="****"
+                        value={managerPassword}
+                        onChange={(e) => setManagerPassword(e.target.value)}
+                      />
+                      <Button
+                        type="button"
+                        className="h-9 bg-orange-600 hover:bg-orange-700 shrink-0"
+                        onClick={() => {
+                          if (managerPassword === '1234') {
+                            setIsDiscountApproved(true)
+                            toast({
+                              title: 'Desconto Liberado',
+                              description: 'Autorização gerencial confirmada.',
+                            })
+                          } else {
+                            toast({
+                              variant: 'destructive',
+                              title: 'Senha Incorreta',
+                              description: 'A senha informada não confere.',
+                            })
+                          }
+                        }}
+                      >
+                        Liberar
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => setIsDiscountApproved(true)}
+                    className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                  >
+                    Aprovar Exceção (Admin)
+                  </Button>
+                )}
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Cliente (Fidelidade / Prazo)</Label>
               <CustomerCombobox
@@ -849,28 +944,24 @@ export default function Sales() {
                   <QrCode className="w-32 h-32 text-emerald-950" strokeWidth={1.5} />
                 </div>
                 <div className="space-y-1.5 w-full">
-                  <p className="text-sm font-semibold text-emerald-900">QR Code PIX Gerado</p>
-                  <p className="text-xs text-emerald-700">Aguardando pagamento do cliente</p>
-                  <div className="flex gap-2 mt-2 w-full">
-                    <Input
-                      readOnly
-                      value="00020126580014br.gov.bcb.pix0136..."
-                      className="h-9 text-xs font-mono bg-white border-emerald-200"
-                    />
+                  <p className="text-sm font-semibold text-emerald-900">QR Code PIX Dinâmico</p>
+                  <p className="text-xs text-emerald-700 mb-2">
+                    Escaneie para pagar {formatCurrency(finalTotal)}
+                  </p>
+
+                  {!pixConfirmed ? (
                     <Button
                       type="button"
-                      variant="outline"
-                      className="h-9 shrink-0 border-emerald-200 hover:bg-emerald-100 text-emerald-800"
-                      onClick={() => {
-                        navigator.clipboard.writeText(
-                          '00020126580014br.gov.bcb.pix0136-mock-code-1234',
-                        )
-                        toast({ title: 'Código PIX copiado!' })
-                      }}
+                      onClick={() => setPixConfirmed(true)}
+                      className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700"
                     >
-                      <Copy className="h-4 w-4 mr-1" /> Copiar
+                      Confirmar Recebimento do PIX
                     </Button>
-                  </div>
+                  ) : (
+                    <div className="bg-emerald-100 text-emerald-800 font-bold p-2.5 rounded-md flex justify-center items-center gap-2 mt-2 border border-emerald-200">
+                      <CheckCircle2 className="w-4 h-4" /> Pagamento Confirmado
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -943,7 +1034,11 @@ export default function Sales() {
             <Button variant="outline" onClick={() => setIsCheckoutOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleCheckout} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button
+              onClick={handleCheckout}
+              className="bg-emerald-600 hover:bg-emerald-700"
+              disabled={!canCheckout}
+            >
               <CheckCircle2 className="mr-2 h-4 w-4" /> Confirmar
             </Button>
           </DialogFooter>

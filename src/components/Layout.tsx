@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Bell, Search, UserCircle, Menu } from 'lucide-react'
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from './AppSidebar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,10 +17,21 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAppContext, Role } from '@/context/AppContext'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 
 export default function Layout() {
   const location = useLocation()
-  const { role, setRole, products } = useAppContext()
+  const { role, setRole, products, maxDiscountPercentage, setMaxDiscountPercentage } =
+    useAppContext()
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [tempMaxDiscount, setTempMaxDiscount] = useState(maxDiscountPercentage)
 
   const lowStockCount = products.filter((p) => p.stock < p.minStock).length
 
@@ -113,6 +126,16 @@ export default function Layout() {
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setTempMaxDiscount(maxDiscountPercentage)
+                    setIsSettingsOpen(true)
+                  }}
+                >
+                  Configurações do Sistema
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-destructive focus:text-destructive cursor-pointer">
                   Sair do Sistema
                 </DropdownMenuItem>
@@ -130,6 +153,43 @@ export default function Layout() {
           </div>
         </main>
       </SidebarInset>
+
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Configurações do Sistema</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label>Desconto Máximo Permitido (%)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                value={tempMaxDiscount}
+                onChange={(e) => setTempMaxDiscount(Number(e.target.value))}
+              />
+              <p className="text-xs text-muted-foreground">
+                Vendas com desconto superior a este valor exigirão senha de liberação do
+                Gerente/Admin no momento do checkout.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                setMaxDiscountPercentage(tempMaxDiscount)
+                setIsSettingsOpen(false)
+              }}
+            >
+              Salvar Configurações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   )
 }
