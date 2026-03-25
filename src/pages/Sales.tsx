@@ -20,7 +20,7 @@ import {
   QrCode,
   Copy,
   MessageCircle,
-  Eye,
+  FileText,
   Save,
   Play,
   RotateCcw,
@@ -301,6 +301,23 @@ export default function Sales() {
     document.body.classList.add('printing-thermal')
     window.print()
     setTimeout(() => document.body.classList.remove('printing-thermal'), 500)
+  }
+
+  const copyReceiptText = () => {
+    if (!receiptSale) return
+    let text = `*CONSTRUMASTER*\nRecibo #${receiptSale.id}\nData: ${new Date(receiptSale.date).toLocaleString('pt-BR')}\nCliente: ${receiptSale.customer}\n\n*Itens:*\n`
+    receiptSale.items.forEach((i) => {
+      text += `- ${i.quantity}x ${i.product.name}: ${formatCurrency(i.total)}\n`
+    })
+    if (receiptSale.discount) text += `\nDesconto: -${formatCurrency(receiptSale.discount)}`
+    text += `\n*Total a Pagar:* ${formatCurrency(receiptSale.total)}\nForma de Pagto: ${receiptSale.paymentMethod || 'Não informado'}\n`
+    text += `\nObrigado pela preferência!`
+
+    navigator.clipboard.writeText(text)
+    toast({
+      title: 'Recibo Copiado',
+      description: 'O recibo foi copiado para a área de transferência.',
+    })
   }
 
   const openWhatsappDialog = (sale: Sale) => {
@@ -693,7 +710,7 @@ export default function Sales() {
                         <MessageCircle className="h-4 w-4 mr-1" /> WhatsApp
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => setReceiptSale(sale)}>
-                        <Eye className="h-4 w-4 mr-1" /> Recibo
+                        <FileText className="h-4 w-4 mr-1" /> Gerar Recibo
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -1018,13 +1035,13 @@ export default function Sales() {
             </Button>
             <Button
               variant="outline"
-              className="text-emerald-600 hover:text-emerald-700"
-              onClick={() => receiptSale && openWhatsappDialog(receiptSale)}
+              className="text-blue-600 hover:text-blue-700"
+              onClick={copyReceiptText}
             >
-              <MessageCircle className="mr-2 h-4 w-4" /> WhatsApp
+              <Copy className="mr-2 h-4 w-4" /> Copiar (WhatsApp)
             </Button>
             <Button onClick={printReceipt}>
-              <Printer className="mr-2 h-4 w-4" /> Imprimir (Térmica)
+              <Printer className="mr-2 h-4 w-4" /> Imprimir
             </Button>
           </DialogFooter>
         </DialogContent>

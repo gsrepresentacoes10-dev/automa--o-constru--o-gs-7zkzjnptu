@@ -54,6 +54,7 @@ export interface Customer {
   name: string
   document: string
   phone: string
+  email?: string
   totalSpent: number
   cashbackBalance: number
 }
@@ -99,6 +100,7 @@ export interface Supplier {
   name: string
   document: string
   contact: string
+  category?: string
 }
 
 export interface PurchaseItem {
@@ -358,6 +360,7 @@ const initialCustomers: Customer[] = [
     name: 'Construtora Alpha Ltda',
     document: '12.345.678/0001-90',
     phone: '(11) 98765-4321',
+    email: 'contato@alpha.com.br',
     totalSpent: 45600.0,
     cashbackBalance: 125.5,
   },
@@ -366,6 +369,7 @@ const initialCustomers: Customer[] = [
     name: 'João Silva',
     document: '123.456.789-00',
     phone: '(11) 91234-5678',
+    email: 'joao.silva@email.com',
     totalSpent: 3450.5,
     cashbackBalance: 45.0,
   },
@@ -440,6 +444,7 @@ const initialSuppliers: Supplier[] = [
     name: 'Votorantim Cimentos',
     document: '00.000.000/0001-91',
     contact: '(11) 4000-0000',
+    category: 'Cimentos e Argamassas',
   },
 ]
 

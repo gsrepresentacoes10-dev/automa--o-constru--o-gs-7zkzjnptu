@@ -41,6 +41,7 @@ export default function Suppliers() {
       name: formData.get('name') as string,
       document: formData.get('document') as string,
       contact: formData.get('contact') as string,
+      category: formData.get('category') as string,
     }
     setSuppliers([...suppliers, newSupplier])
     setIsAdding(false)
@@ -73,6 +74,10 @@ export default function Suppliers() {
                 <div className="space-y-2">
                   <Label>CNPJ / CPF</Label>
                   <Input name="document" required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Categoria</Label>
+                  <Input name="category" placeholder="Ex: Cimentos, Hidráulica" />
                 </div>
                 <div className="space-y-2">
                   <Label>Contato / Telefone</Label>
@@ -108,6 +113,7 @@ export default function Suppliers() {
           <TableHeader>
             <TableRow>
               <TableHead>Fornecedor</TableHead>
+              <TableHead>Categoria</TableHead>
               <TableHead>CNPJ / CPF</TableHead>
               <TableHead>Contato</TableHead>
             </TableRow>
@@ -121,13 +127,14 @@ export default function Suppliers() {
                   </div>
                   {s.name}
                 </TableCell>
+                <TableCell>{s.category || '-'}</TableCell>
                 <TableCell>{s.document}</TableCell>
                 <TableCell>{s.contact}</TableCell>
               </TableRow>
             ))}
             {filteredSuppliers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                   Nenhum fornecedor encontrado.
                 </TableCell>
               </TableRow>

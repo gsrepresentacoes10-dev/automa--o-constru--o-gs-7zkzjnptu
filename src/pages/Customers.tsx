@@ -51,6 +51,7 @@ export default function Customers() {
       name: formData.get('name') as string,
       document: formData.get('document') as string,
       phone: formData.get('phone') as string,
+      email: formData.get('email') as string,
     })
     setIsAdding(false)
   }
@@ -103,6 +104,10 @@ export default function Customers() {
                 <div className="space-y-2">
                   <Label>Telefone / WhatsApp</Label>
                   <Input name="phone" required placeholder="(11) 99999-9999" />
+                </div>
+                <div className="space-y-2">
+                  <Label>E-mail</Label>
+                  <Input name="email" type="email" placeholder="contato@empresa.com" />
                 </div>
               </div>
               <DialogFooter>
@@ -191,6 +196,11 @@ export default function Customers() {
               <span>
                 <strong>Telefone:</strong> {selectedCustomer?.phone}
               </span>
+              {selectedCustomer?.email && (
+                <span>
+                  <strong>E-mail:</strong> {selectedCustomer?.email}
+                </span>
+              )}
             </SheetDescription>
           </SheetHeader>
 
