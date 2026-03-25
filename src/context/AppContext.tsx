@@ -34,6 +34,7 @@ export interface Product {
   costPrice: number
   stock: number
   minStock: number
+  leadTime?: number
 }
 
 export type MovementType = 'Entrada' | 'Saída'
@@ -161,7 +162,7 @@ interface AppContextType {
   products: Product[]
   setProducts: (products: Product[]) => void
   addProduct: (product: Omit<Product, 'id'>) => void
-  updateProduct: (id: string, product: Partial<Product>) => void
+  updateProduct: (id: string, product: Partial<Product>, silent?: boolean) => void
   deleteProduct: (id: string) => void
   stockMovements: StockMovement[]
   addManualStockAdjustment: (
@@ -220,6 +221,7 @@ const initialProducts: Product[] = [
     costPrice: 28.0,
     stock: 12,
     minStock: 50,
+    leadTime: 3,
   },
   {
     id: '2',
@@ -232,6 +234,7 @@ const initialProducts: Product[] = [
     costPrice: 0.8,
     stock: 5200,
     minStock: 1000,
+    leadTime: 7,
   },
   {
     id: '3',
@@ -512,7 +515,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toast({ title: 'Produto Cadastrado', description: `${product.name} adicionado com sucesso.` })
   }
 
-  const updateProduct = (id: string, productData: Partial<Product>) => {
+  const updateProduct = (id: string, productData: Partial<Product>, silent: boolean = false) => {
     const product = products.find((p) => p.id === id)
     if (product && productData.stock !== undefined && productData.stock !== product.stock) {
       const newStock = productData.stock
@@ -531,7 +534,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...productData } : p)))
-    toast({ title: 'Produto Atualizado', description: 'As alterações foram salvas.' })
+    if (!silent) {
+      toast({ title: 'Produto Atualizado', description: 'As alterações foram salvas.' })
+    }
   }
 
   const deleteProduct = (id: string) => {

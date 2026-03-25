@@ -49,6 +49,9 @@ export default function Purchases() {
   const [sortBy, setSortBy] = useState<'urgency' | 'name'>('urgency')
   const [purchaseFilter, setPurchaseFilter] = useState<string>('all')
 
+  // Lead time inputs state
+  const [leadTimeInputs, setLeadTimeInputs] = useState<Record<string, string>>({})
+
   // History filters
   const [historyFrom, setHistoryFrom] = useState('')
   const [historyTo, setHistoryTo] = useState('')
@@ -58,6 +61,26 @@ export default function Purchases() {
   const [isCalcOpen, setIsCalcOpen] = useState(false)
   const [calcProduct, setCalcProduct] = useState<any>(null)
   const [calcMargin, setCalcMargin] = useState<number>(40)
+
+  const handleLeadTimeChange = (id: string, value: string) => {
+    setLeadTimeInputs((prev) => ({ ...prev, [id]: value }))
+  }
+
+  const saveLeadTime = (id: string, value: string) => {
+    if (value === '') {
+      updateProduct(id, { leadTime: undefined }, true)
+      setLeadTimeInputs((prev) => {
+        const next = { ...prev }
+        delete next[id]
+        return next
+      })
+    } else {
+      const numValue = parseInt(value, 10)
+      const validValue = isNaN(numValue) || numValue < 0 ? 0 : numValue
+      updateProduct(id, { leadTime: validValue }, true)
+      setLeadTimeInputs((prev) => ({ ...prev, [id]: validValue.toString() }))
+    }
+  }
 
   const openCalculator = (product: any) => {
     setCalcProduct(product)
@@ -98,7 +121,9 @@ export default function Purchases() {
       const revenue30d = sold30d * product.price
       const dailyAvg = sold30d / 30
       const daysOfCover = dailyAvg > 0 ? Math.floor(product.stock / dailyAvg) : Infinity
-      const targetStock = Math.ceil(Math.max(product.minStock, dailyAvg * 30))
+
+      const leadTime = product.leadTime || 0
+      const targetStock = Math.ceil(Math.max(product.minStock, dailyAvg * (30 + leadTime)))
       const suggestedPurchase = Math.max(0, targetStock - product.stock)
       const healthPercentage =
         targetStock > 0 ? Math.min(100, (product.stock / targetStock) * 100) : 100
@@ -213,8 +238,8 @@ export default function Purchases() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Gestão de Compras</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Planeje reposições com base em 30 dias de cobertura (Média Diária × 30) e acesse o
-            histórico.
+            Planeje reposições com base em 30 dias de cobertura (Média Diária × (30 + Prazo)) e
+            acesse o histórico.
           </p>
         </div>
       </div>
@@ -320,6 +345,7 @@ export default function Purchases() {
                     <TableHead>Produto / ABC</TableHead>
                     <TableHead>Saúde do Estoque</TableHead>
                     <TableHead className="text-center">Vendas (30d) / Média</TableHead>
+                    <TableHead className="text-center w-[100px]">Prazo (Dias)</TableHead>
                     <TableHead className="text-center">Cobertura / Fim</TableHead>
                     <TableHead className="text-center w-[240px]">Status da Compra / Ação</TableHead>
                   </TableRow>
@@ -370,6 +396,31 @@ export default function Purchases() {
                         <div className="font-medium">{item.sold30d} un</div>
                         <div className="text-[10px] text-muted-foreground">
                           {item.dailyAvg.toFixed(1)} un/dia
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center align-middle">
+                        <div className="flex flex-col items-center justify-center gap-1 w-16 mx-auto">
+                          <Input
+                            type="number"
+                            min="0"
+                            className="h-8 text-center px-1 text-xs"
+                            value={
+                              leadTimeInputs[item.id] !== undefined
+                                ? leadTimeInputs[item.id]
+                                : (item.leadTime ?? '')
+                            }
+                            placeholder="0"
+                            onChange={(e) => handleLeadTimeChange(item.id, e.target.value)}
+                            onBlur={(e) => saveLeadTime(item.id, e.target.value)}
+                          />
+                          {item.leadTime === undefined && (
+                            <span
+                              className="text-[9px] text-muted-foreground/70 leading-none whitespace-nowrap"
+                              title="Calculando com 0 dias"
+                            >
+                              Padrão: 0
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
@@ -434,7 +485,7 @@ export default function Purchases() {
                   ))}
                   {filteredAndSortedData.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         Nenhum produto encontrado.
                       </TableCell>
                     </TableRow>
