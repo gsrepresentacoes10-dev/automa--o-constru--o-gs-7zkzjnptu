@@ -10,6 +10,7 @@ import {
   Plus,
   Truck,
   FileText,
+  PackageOpen,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -52,7 +53,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
 
 export default function Inventory() {
-  const { products, stockMovements, addManualStockAdjustment, purchaseOrders } = useAppContext()
+  const { products, stockMovements, addManualStockAdjustment, purchaseOrders, purchases } =
+    useAppContext()
   const [searchTerm, setSearchTerm] = useState('')
   const [showCriticalOnly, setShowCriticalOnly] = useState(false)
   const [isScannerOpen, setIsScannerOpen] = useState(false)
@@ -62,6 +64,20 @@ export default function Inventory() {
   const [adjustmentType, setAdjustmentType] = useState<MovementType>('Entrada')
   const [adjustmentQuantity, setAdjustmentQuantity] = useState('')
   const [adjustmentReason, setAdjustmentReason] = useState('')
+
+  // Compute the last supplier for each product based on purchase history
+  const productSupplierMap = useMemo(() => {
+    const map = new Map<string, string>()
+    const sortedPurchases = [...purchases].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    )
+    sortedPurchases.forEach((p) => {
+      p.items.forEach((i) => {
+        map.set(i.product.id, p.supplierName || 'Desconhecido')
+      })
+    })
+    return map
+  }, [purchases])
 
   const sortedProducts = useMemo(() => {
     return [...products].sort((a, b) => a.name.localeCompare(b.name))
@@ -119,15 +135,15 @@ export default function Inventory() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Consulta de Estoque</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Gestão de Estoque</h1>
           <p className="text-muted-foreground">
-            Monitore os materiais disponíveis, acompanhe alertas e acesse o Kardex.
+            Monitore níveis de inventário, alertas de reposição e realize ajustes manuais (Kardex).
           </p>
         </div>
       </div>
 
       <div className="bg-card border rounded-lg overflow-hidden shadow-sm">
-        <div className="p-4 border-b bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="p-4 border-b bg-muted/20 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <form onSubmit={handleBarcodeSubmit} className="relative flex gap-2 w-full max-w-md">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -149,7 +165,7 @@ export default function Inventory() {
             </Button>
           </form>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 bg-background border px-3 py-2 rounded-md shadow-sm">
             <Checkbox
               id="critical-stock"
               checked={showCriticalOnly}
@@ -160,7 +176,7 @@ export default function Inventory() {
               className="text-sm font-medium cursor-pointer flex items-center gap-1.5"
             >
               <AlertTriangle className="h-4 w-4 text-amber-500" />
-              Mostrar apenas estoque crítico
+              Mostrar apenas estoque crítico/baixo
             </Label>
           </div>
         </div>
@@ -170,6 +186,7 @@ export default function Inventory() {
               <TableRow>
                 <TableHead>Produto</TableHead>
                 <TableHead>Categoria</TableHead>
+                <TableHead>Últ. Fornecedor</TableHead>
                 <TableHead className="text-right">Preço Venda</TableHead>
                 <TableHead className="text-center">Estoque Atual</TableHead>
                 <TableHead className="text-center">Status</TableHead>
@@ -185,10 +202,18 @@ export default function Inventory() {
                   (po) => po.productId === product.id && po.status === 'Aguardando Chegada',
                 )
 
+                const supplier = productSupplierMap.get(product.id) || '-'
+
                 return (
                   <TableRow
                     key={product.id}
-                    className={isOutOfStock ? 'bg-destructive/10' : isLow ? 'bg-amber-500/5' : ''}
+                    className={
+                      isOutOfStock
+                        ? 'bg-destructive/10 hover:bg-destructive/20 transition-colors'
+                        : isLow
+                          ? 'bg-amber-500/5 hover:bg-amber-500/10 transition-colors'
+                          : ''
+                    }
                   >
                     <TableCell>
                       <p className="font-medium">{product.name}</p>
@@ -210,45 +235,66 @@ export default function Inventory() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{product.category}</Badge>
+                      <Badge variant="outline" className="font-normal text-xs">
+                        {product.category}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className="text-xs text-muted-foreground truncate max-w-[140px] inline-block"
+                        title={supplier}
+                      >
+                        {supplier}
+                      </span>
                     </TableCell>
                     <TableCell className="text-right font-medium">
                       {formatCurrency(product.price)}
                     </TableCell>
                     <TableCell className="text-center align-middle">
                       <div className="flex flex-col items-center justify-center">
-                        <div>
-                          <span
-                            className={cn(
-                              'text-base',
-                              isOutOfStock || isLow ? 'font-bold text-destructive' : '',
-                            )}
-                          >
-                            {product.stock}
-                          </span>{' '}
-                          <span className="text-xs text-muted-foreground">{product.unit}</span>
+                        <div
+                          className={cn(
+                            'px-3 py-1 rounded-md border flex items-baseline gap-1',
+                            isOutOfStock
+                              ? 'bg-destructive/20 border-destructive/30 text-destructive'
+                              : isLow
+                                ? 'bg-amber-100 border-amber-200 text-amber-700'
+                                : 'bg-muted/50 border-transparent',
+                          )}
+                        >
+                          <span className="text-lg font-bold leading-none">{product.stock}</span>
+                          <span className="text-[10px] font-medium opacity-80 leading-none">
+                            {product.unit}
+                          </span>
                         </div>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                          Mín: {product.minStock}
+                        <p
+                          className={cn(
+                            'text-[10px] mt-1 font-medium',
+                            isOutOfStock || isLow ? 'text-destructive' : 'text-muted-foreground',
+                          )}
+                        >
+                          Mínimo: {product.minStock}
                         </p>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="flex flex-col items-center gap-2">
                         {isOutOfStock ? (
-                          <div className="flex items-center justify-center text-white text-xs font-bold gap-1 bg-destructive py-1 px-2 rounded-md w-fit mx-auto shadow-sm">
-                            <AlertOctagon className="h-3 w-3" /> Sem Estoque
+                          <div className="flex items-center justify-center text-white text-[11px] font-bold gap-1 bg-destructive py-1 px-2.5 rounded-md w-fit mx-auto shadow-sm">
+                            <AlertOctagon className="h-3.5 w-3.5" /> Sem Estoque
                           </div>
                         ) : isLow ? (
-                          <div className="flex items-center justify-center text-amber-700 text-xs font-bold gap-1 bg-amber-100 py-1 px-2 rounded-full w-fit mx-auto border border-amber-200">
-                            <AlertTriangle className="h-3 w-3" /> Estoque Baixo
+                          <div className="flex items-center justify-center text-amber-700 text-[11px] font-bold gap-1 bg-amber-100 py-1 px-2.5 rounded-full w-fit mx-auto border border-amber-200 shadow-sm">
+                            <AlertTriangle className="h-3.5 w-3.5" /> Estoque Baixo
                           </div>
                         ) : (
-                          <span className="text-emerald-600 text-sm font-medium">Normal</span>
+                          <span className="text-emerald-600 text-sm font-medium flex items-center gap-1">
+                            <PackageOpen className="h-4 w-4" /> Normal
+                          </span>
                         )}
 
                         {pendingOrder && (
-                          <div className="flex flex-col items-center gap-1 border-t pt-2 mt-1 w-full max-w-[140px]">
+                          <div className="flex flex-col items-center gap-1 border-t border-border/50 pt-2 mt-1 w-full max-w-[140px]">
                             <Badge
                               variant="secondary"
                               className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] py-0.5 whitespace-nowrap"
@@ -280,9 +326,9 @@ export default function Inventory() {
                         variant="ghost"
                         size="sm"
                         onClick={() => setSelectedProductHistory(product)}
-                        className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                        className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 border border-transparent hover:border-indigo-100 transition-all"
                       >
-                        <History className="h-4 w-4 mr-2" /> Histórico
+                        <History className="h-4 w-4 mr-2" /> Kardex
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -290,7 +336,8 @@ export default function Inventory() {
               })}
               {filteredProducts.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                    <PackageOpen className="h-8 w-8 mx-auto mb-3 opacity-20" />
                     Nenhum produto encontrado com os filtros atuais.
                   </TableCell>
                 </TableRow>
@@ -305,63 +352,71 @@ export default function Inventory() {
         onOpenChange={(open) => !open && setSelectedProductHistory(null)}
       >
         <SheetContent className="sm:max-w-[700px] w-[90vw] flex flex-col gap-0 p-0">
-          <SheetHeader className="p-6 pb-4 border-b">
-            <SheetTitle>Histórico de Movimentações (Kardex)</SheetTitle>
+          <SheetHeader className="p-6 pb-4 border-b bg-muted/10">
+            <SheetTitle className="flex items-center gap-2">
+              <History className="h-5 w-5 text-indigo-600" /> Histórico de Movimentações (Kardex)
+            </SheetTitle>
             <SheetDescription>
-              Produto: <strong className="text-foreground">{currentProductForHistory?.name}</strong>{' '}
-              (SKU: {currentProductForHistory?.sku})
+              Acompanhe a trilha de auditoria do produto:{' '}
+              <strong className="text-foreground">{currentProductForHistory?.name}</strong> (SKU:{' '}
+              {currentProductForHistory?.sku})
             </SheetDescription>
           </SheetHeader>
           <div className="p-6 flex-1 flex flex-col overflow-hidden gap-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div className="bg-muted px-4 py-2 rounded-md border flex items-center gap-2">
-                <span className="text-sm font-medium text-muted-foreground">Saldo Atual:</span>
-                <span className="text-lg font-bold">
-                  {currentProductForHistory?.stock}{' '}
-                  <span className="text-xs text-muted-foreground">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card border p-4 rounded-lg shadow-sm">
+              <div className="flex flex-col">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">
+                  Saldo Físico Atual
+                </span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-primary">
+                    {currentProductForHistory?.stock}
+                  </span>
+                  <span className="text-sm font-medium text-muted-foreground">
                     {currentProductForHistory?.unit}
                   </span>
-                </span>
+                </div>
               </div>
               <Button
                 onClick={() => setIsAdjustmentOpen(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto"
+                className="bg-indigo-600 hover:bg-indigo-700 w-full sm:w-auto shadow-sm"
               >
-                <Plus className="h-4 w-4 mr-2" /> Ajuste Manual
+                <Plus className="h-4 w-4 mr-2" /> Novo Ajuste Manual
               </Button>
             </div>
 
-            <div className="flex-1 border rounded-lg overflow-hidden flex flex-col">
-              <ScrollArea className="flex-1 bg-card">
+            <div className="flex-1 border rounded-lg overflow-hidden flex flex-col shadow-sm">
+              <ScrollArea className="flex-1 bg-white">
                 <Table>
-                  <TableHeader className="sticky top-0 bg-muted/95 backdrop-blur z-10">
+                  <TableHeader className="sticky top-0 bg-muted/95 backdrop-blur z-10 shadow-sm">
                     <TableRow>
                       <TableHead>Data/Hora</TableHead>
                       <TableHead>Tipo</TableHead>
-                      <TableHead className="text-right">Quantidade</TableHead>
-                      <TableHead>Origem/Motivo</TableHead>
-                      <TableHead className="text-right">Saldo Resultante</TableHead>
+                      <TableHead className="text-right">Qtd</TableHead>
+                      <TableHead>Origem / Documento</TableHead>
+                      <TableHead className="text-right">Saldo</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {productMovements.map((mov) => (
-                      <TableRow key={mov.id}>
-                        <TableCell className="whitespace-nowrap">
+                      <TableRow key={mov.id} className="hover:bg-muted/30">
+                        <TableCell className="whitespace-nowrap text-xs font-medium">
                           {format(new Date(mov.date), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
                         </TableCell>
                         <TableCell>
                           <Badge
                             variant={mov.type === 'Entrada' ? 'default' : 'secondary'}
-                            className={
+                            className={cn(
+                              'text-[10px] px-2 py-0.5',
                               mov.type === 'Entrada'
-                                ? 'bg-emerald-500 hover:bg-emerald-600'
-                                : 'bg-orange-100 text-orange-800 hover:bg-orange-200 border-orange-200'
-                            }
+                                ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-emerald-200'
+                                : 'bg-orange-100 text-orange-800 hover:bg-orange-200 border-orange-200',
+                            )}
                           >
                             {mov.type}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right font-medium">
+                        <TableCell className="text-right font-bold text-sm">
                           <span
                             className={
                               mov.type === 'Entrada' ? 'text-emerald-600' : 'text-orange-600'
@@ -371,16 +426,18 @@ export default function Inventory() {
                             {mov.quantity}
                           </span>
                         </TableCell>
-                        <TableCell className="text-muted-foreground text-xs">
+                        <TableCell className="text-muted-foreground text-xs leading-tight">
                           {mov.origin}
                         </TableCell>
-                        <TableCell className="text-right font-bold">{mov.balanceAfter}</TableCell>
+                        <TableCell className="text-right font-black text-sm">
+                          {mov.balanceAfter}
+                        </TableCell>
                       </TableRow>
                     ))}
                     {productMovements.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                          Nenhuma movimentação registrada.
+                          Nenhuma movimentação registrada no sistema.
                         </TableCell>
                       </TableRow>
                     )}
@@ -396,9 +453,18 @@ export default function Inventory() {
         <DialogContent className="sm:max-w-[425px]">
           <form onSubmit={handleAdjustmentSubmit}>
             <DialogHeader>
-              <DialogTitle>Novo Ajuste Manual</DialogTitle>
+              <DialogTitle>Ajuste Físico de Estoque</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
+              <div className="bg-muted/50 p-3 rounded-md text-sm mb-2 border border-border/50">
+                <p>
+                  <strong>Produto:</strong> {currentProductForHistory?.name}
+                </p>
+                <p className="mt-1">
+                  <strong>Saldo Atual:</strong> {currentProductForHistory?.stock}{' '}
+                  {currentProductForHistory?.unit}
+                </p>
+              </div>
               <div className="space-y-2">
                 <Label>Tipo de Movimento</Label>
                 <Select
@@ -409,28 +475,29 @@ export default function Inventory() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Entrada">Entrada (Acrescentar saldo)</SelectItem>
-                    <SelectItem value="Saída">Saída (Diminuir saldo)</SelectItem>
+                    <SelectItem value="Entrada">Entrada (+ Acréscimo)</SelectItem>
+                    <SelectItem value="Saída">Saída (- Dedução)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Quantidade</Label>
+                <Label>Quantidade a ajustar</Label>
                 <Input
                   type="number"
                   min="1"
                   required
+                  placeholder="Ex: 5"
                   value={adjustmentQuantity}
                   onChange={(e) => setAdjustmentQuantity(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
                 <Label>
-                  Motivo / Observação <span className="text-destructive">*</span>
+                  Motivo da Movimentação <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   required
-                  placeholder="Ex: Quebra, Perda, Correção de Inventário"
+                  placeholder="Ex: Quebra, Perda, Acerto de Inventário"
                   value={adjustmentReason}
                   onChange={(e) => setAdjustmentReason(e.target.value)}
                 />
@@ -443,7 +510,7 @@ export default function Inventory() {
                 </Button>
               </DialogClose>
               <Button type="submit" className="bg-indigo-600 hover:bg-indigo-700">
-                Salvar Ajuste
+                Salvar Movimentação
               </Button>
             </DialogFooter>
           </form>
@@ -458,4 +525,3 @@ export default function Inventory() {
     </div>
   )
 }
-

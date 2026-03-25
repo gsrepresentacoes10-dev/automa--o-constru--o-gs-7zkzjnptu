@@ -27,6 +27,7 @@ import {
   Gift,
   Camera,
   ShieldAlert,
+  Ban,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,6 +39,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { toast } from '@/hooks/use-toast'
@@ -69,6 +71,7 @@ export default function Sales() {
     customers,
     sellers,
     addSale,
+    cancelSale,
     cashbackPercentage,
     preSales,
     addPreSale,
@@ -105,6 +108,8 @@ export default function Sales() {
   const [isDiscountApproved, setIsDiscountApproved] = useState(false)
   const [managerPassword, setManagerPassword] = useState('')
   const [pixConfirmed, setPixConfirmed] = useState(false)
+
+  const [saleToCancel, setSaleToCancel] = useState<string | null>(null)
 
   useEffect(() => {
     if (isCheckoutOpen) {
@@ -330,6 +335,13 @@ export default function Sales() {
         title: 'Fidelidade Atualizada',
         description: `O cliente ganhou ${formatCurrency(cashbackEarned)} em pontos de fidelidade!`,
       })
+    }
+  }
+
+  const handleCancelSale = () => {
+    if (saleToCancel) {
+      cancelSale(saleToCancel)
+      setSaleToCancel(null)
     }
   }
 
@@ -708,7 +720,10 @@ export default function Sales() {
               </TableHeader>
               <TableBody>
                 {sales.map((sale) => (
-                  <TableRow key={sale.id}>
+                  <TableRow
+                    key={sale.id}
+                    className={sale.status === 'Cancelado' ? 'opacity-60 bg-muted/50' : ''}
+                  >
                     <TableCell className="pl-6">
                       <div className="font-medium">
                         {new Date(sale.date).toLocaleDateString('pt-BR')}
@@ -730,24 +745,49 @@ export default function Sales() {
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge
-                        variant={sale.status === 'Pago' ? 'default' : 'secondary'}
+                        variant={
+                          sale.status === 'Pago'
+                            ? 'default'
+                            : sale.status === 'Cancelado'
+                              ? 'destructive'
+                              : 'secondary'
+                        }
                         className={sale.status === 'Pago' ? 'bg-emerald-500' : ''}
                       >
                         {sale.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right pr-6 space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                        onClick={() => openWhatsappDialog(sale)}
-                      >
-                        <MessageCircle className="h-4 w-4 mr-1" /> WhatsApp
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setReceiptSale(sale)}>
-                        <FileText className="h-4 w-4 mr-1" /> Gerar Recibo
-                      </Button>
+                    <TableCell className="text-right pr-6">
+                      <div className="flex justify-end gap-2">
+                        {sale.status !== 'Cancelado' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10"
+                            onClick={() => setSaleToCancel(sale.id)}
+                            title="Estornar Venda"
+                          >
+                            <Ban className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                          onClick={() => openWhatsappDialog(sale)}
+                          title="Enviar via WhatsApp"
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setReceiptSale(sale)}
+                          title="Gerar Recibo"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1040,6 +1080,31 @@ export default function Sales() {
               disabled={!canCheckout}
             >
               <CheckCircle2 className="mr-2 h-4 w-4" /> Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Sale Confirmation Dialog */}
+      <Dialog open={!!saleToCancel} onOpenChange={(open) => !open && setSaleToCancel(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <Ban className="h-5 w-5" /> Confirmar Estorno
+            </DialogTitle>
+            <DialogDescription>
+              Você está prestes a cancelar a venda <strong>{saleToCancel}</strong>.
+              <br />
+              Isso irá retornar os itens ao estoque e remover o valor do fluxo financeiro do
+              cliente.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setSaleToCancel(null)}>
+              Voltar
+            </Button>
+            <Button variant="destructive" onClick={handleCancelSale}>
+              Confirmar Cancelamento
             </Button>
           </DialogFooter>
         </DialogContent>
