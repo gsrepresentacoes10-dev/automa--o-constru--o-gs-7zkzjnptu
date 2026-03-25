@@ -48,7 +48,6 @@ const menuSections = [
       },
       { title: 'Estoque', url: '/estoque', icon: Package, roles: ['Admin', 'Manager'] },
       { title: 'Compras', url: '/compras', icon: ShoppingBag, roles: ['Admin', 'Manager'] },
-      { title: 'Fornecedores', url: '/fornecedores', icon: Truck, roles: ['Admin', 'Manager'] },
       {
         title: 'Financeiro (A Receber)',
         url: '/contas-receber',
@@ -69,6 +68,7 @@ const menuSections = [
     label: 'Cadastros',
     items: [
       { title: 'Produtos', url: '/produtos', icon: Boxes, roles: ['Admin', 'Manager'] },
+      { title: 'Fornecedores', url: '/fornecedores', icon: Truck, roles: ['Admin', 'Manager'] },
       { title: 'Vendedores', url: '/vendedores', icon: Tags, roles: ['Admin', 'Manager'] },
       { title: 'Clientes', url: '/clientes', icon: Users, roles: ['Admin', 'Manager'] },
       { title: 'Usuários do Sistema', url: '/colaboradores', icon: UserCog, roles: ['Admin'] },
