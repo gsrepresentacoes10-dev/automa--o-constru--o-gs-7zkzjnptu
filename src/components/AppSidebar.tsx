@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Tags,
   Boxes,
+  LineChart,
 } from 'lucide-react'
 import {
   Sidebar,
@@ -61,6 +62,12 @@ const menuSections = [
   {
     label: 'Financeiro',
     items: [
+      {
+        title: 'Fluxo de Caixa',
+        url: '/fluxo-caixa',
+        icon: LineChart,
+        roles: ['Admin', 'Manager'],
+      },
       {
         title: 'Contas a Receber',
         url: '/contas-receber',

@@ -133,6 +133,7 @@ export interface Payable {
   dueDate: string
   status: 'Pendente' | 'Pago'
   purchaseId?: string
+  paymentDate?: string
 }
 
 export interface QuoteEditLog {
@@ -202,7 +203,7 @@ interface AppContextType {
   purchaseOrders: PurchaseOrder[]
   payables: Payable[]
   addPayable: (payable: Omit<Payable, 'id' | 'status'>) => Payable
-  markPayableAsPaid: (id: string) => void
+  markPayableAsPaid: (id: string, paymentDate?: string) => void
   quotes: Quote[]
   addQuote: (quote: Omit<Quote, 'id' | 'date' | 'status'>) => void
   updateQuote: (id: string, quote: Partial<Quote>, logEdit?: boolean) => void
@@ -434,6 +435,16 @@ const initialPayables: Payable[] = [
     dueDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // Overdue
     status: 'Pendente',
     purchaseId: 'C-1001',
+  },
+  {
+    id: 'CP-1002',
+    supplierId: '1',
+    supplierName: 'Votorantim Cimentos',
+    description: 'Compra de Estoque C-1002',
+    amount: 1500.0,
+    dueDate: new Date().toISOString(), // Due today
+    status: 'Pendente',
+    purchaseId: 'C-1002',
   },
 ]
 
@@ -689,8 +700,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return payable
   }
 
-  const markPayableAsPaid = (id: string) => {
-    setPayables((prev) => prev.map((p) => (p.id === id ? { ...p, status: 'Pago' } : p)))
+  const markPayableAsPaid = (id: string, paymentDate?: string) => {
+    setPayables((prev) =>
+      prev.map((p) =>
+        p.id === id
+          ? { ...p, status: 'Pago', paymentDate: paymentDate || new Date().toISOString() }
+          : p,
+      ),
+    )
     toast({ title: 'Conta Paga', description: 'O pagamento foi registrado com sucesso.' })
   }
 

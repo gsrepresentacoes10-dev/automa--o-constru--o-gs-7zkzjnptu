@@ -21,6 +21,7 @@ import Sellers from './pages/Sellers'
 import SellerPerformance from './pages/SellerPerformance'
 import Checkout from './pages/Checkout'
 import NotFound from './pages/NotFound'
+import CashFlow from './pages/CashFlow'
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
@@ -44,6 +45,7 @@ const App = () => (
             <Route path="/colaboradores" element={<Staff />} />
             <Route path="/desempenho" element={<SellerPerformance />} />
             <Route path="/relatorios" element={<Reports />} />
+            <Route path="/fluxo-caixa" element={<CashFlow />} />
             <Route path="/contas-receber" element={<Receivables />} />
             <Route path="/contas-a-pagar" element={<Payables />} />
           </Route>

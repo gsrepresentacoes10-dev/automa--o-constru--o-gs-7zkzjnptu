@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useAppContext } from '@/context/AppContext'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, cn } from '@/lib/utils'
 import { Wallet, CheckCircle2, Search, AlertCircle } from 'lucide-react'
 import {
   Table,
@@ -22,6 +22,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 
 export default function Payables() {
   const { payables, markPayableAsPaid, suppliers } = useAppContext()
@@ -29,6 +37,10 @@ export default function Payables() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [supplierFilter, setSupplierFilter] = useState('all')
+
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
+  const [selectedPayableId, setSelectedPayableId] = useState<string | null>(null)
+  const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0])
 
   const filteredPayables = useMemo(() => {
     return payables
@@ -68,8 +80,60 @@ export default function Payables() {
     })
     .reduce((acc, curr) => acc + curr.amount, 0)
 
+  const handleOpenPayment = (id: string) => {
+    setSelectedPayableId(id)
+    setPaymentDate(new Date().toISOString().split('T')[0])
+    setPaymentDialogOpen(true)
+  }
+
+  const handleConfirmPayment = () => {
+    if (selectedPayableId) {
+      markPayableAsPaid(selectedPayableId, new Date(paymentDate).toISOString())
+    }
+    setPaymentDialogOpen(false)
+    setSelectedPayableId(null)
+  }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const overduePayables = payables.filter(
+    (p) => p.status === 'Pendente' && new Date(p.dueDate) < today,
+  )
+  const dueTodayPayables = payables.filter(
+    (p) => p.status === 'Pendente' && new Date(p.dueDate).getTime() === today.getTime(),
+  )
+
   return (
     <div className="space-y-6">
+      {(overduePayables.length > 0 || dueTodayPayables.length > 0) && (
+        <div className="flex flex-col gap-2">
+          {overduePayables.length > 0 && (
+            <Alert
+              variant="destructive"
+              className="bg-destructive/10 border-destructive/20 text-destructive"
+            >
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Atenção: Contas Atrasadas</AlertTitle>
+              <AlertDescription>
+                Existem {overduePayables.length} conta(s) em atraso no valor total de{' '}
+                {formatCurrency(overduePayables.reduce((a, b) => a + b.amount, 0))}.
+              </AlertDescription>
+            </Alert>
+          )}
+          {dueTodayPayables.length > 0 && (
+            <Alert className="bg-amber-50 border-amber-200 text-amber-800 [&>svg]:text-amber-600">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Vencendo Hoje</AlertTitle>
+              <AlertDescription>
+                Existem {dueTodayPayables.length} conta(s) vencendo hoje no valor total de{' '}
+                {formatCurrency(dueTodayPayables.reduce((a, b) => a + b.amount, 0))}.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Contas a Pagar</h1>
@@ -176,12 +240,19 @@ export default function Payables() {
             <TableBody>
               {filteredPayables.map((payable) => {
                 const isPending = payable.status === 'Pendente'
-                const today = new Date()
-                today.setHours(0, 0, 0, 0)
-                const isOverdue = isPending && payable.dueDate && new Date(payable.dueDate) < today
+                const payDueDate = new Date(payable.dueDate)
+                payDueDate.setHours(0, 0, 0, 0)
+                const isOverdue = isPending && payDueDate < today
+                const isDueToday = isPending && payDueDate.getTime() === today.getTime()
 
                 return (
-                  <TableRow key={payable.id} className={isOverdue ? 'bg-destructive/5' : ''}>
+                  <TableRow
+                    key={payable.id}
+                    className={cn(
+                      isOverdue && 'bg-destructive/10',
+                      isDueToday && 'bg-amber-500/10',
+                    )}
+                  >
                     <TableCell className="font-medium">{payable.supplierName}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       <div>{payable.description}</div>
@@ -213,18 +284,25 @@ export default function Payables() {
                         <Button
                           size="sm"
                           variant={isOverdue ? 'default' : 'outline'}
-                          onClick={() => markPayableAsPaid(payable.id)}
-                          className={
+                          onClick={() => handleOpenPayment(payable.id)}
+                          className={cn(
                             isOverdue
                               ? 'bg-destructive hover:bg-destructive/90 text-white'
-                              : 'hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200'
-                          }
+                              : 'hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200',
+                            isDueToday &&
+                              'bg-amber-500 hover:bg-amber-600 text-white border-transparent',
+                          )}
                         >
-                          <CheckCircle2 className="h-4 w-4 mr-1" /> Pagar
+                          <CheckCircle2 className="h-4 w-4 mr-1" /> Baixar Pagamento
                         </Button>
                       ) : (
                         <span className="text-xs text-emerald-600 font-medium flex items-center justify-end gap-1">
                           <CheckCircle2 className="h-3 w-3" /> Liquidado
+                          {payable.paymentDate && (
+                            <span className="text-[10px] text-muted-foreground ml-1">
+                              ({new Date(payable.paymentDate).toLocaleDateString('pt-BR')})
+                            </span>
+                          )}
                         </span>
                       )}
                     </TableCell>
@@ -243,6 +321,37 @@ export default function Payables() {
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Baixar Pagamento</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label>Data de Pagamento</Label>
+              <Input
+                type="date"
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                max={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Confirmar o pagamento mudará o status desta conta para "Pago" e refletirá no fluxo de
+              caixa.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmPayment} className="bg-emerald-600 hover:bg-emerald-700">
+              Confirmar Baixa
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

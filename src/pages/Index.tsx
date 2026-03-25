@@ -10,6 +10,7 @@ import {
   FileText,
   CheckCircle2,
   XCircle,
+  AlertCircle,
 } from 'lucide-react'
 import { subDays, subWeeks, subMonths, format, startOfWeek, isSameMonth } from 'date-fns'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
@@ -24,13 +25,24 @@ import {
   LineChart,
 } from 'recharts'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 
 export default function Index() {
-  const { products, sales, quotes, role } = useAppContext()
+  const { products, sales, quotes, role, payables } = useAppContext()
 
   if (role === 'Seller') {
     return <Navigate to="/vendas" replace />
   }
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const overduePayables = payables.filter(
+    (p) => p.status === 'Pendente' && new Date(p.dueDate) < today,
+  )
+  const dueTodayPayables = payables.filter(
+    (p) => p.status === 'Pendente' && new Date(p.dueDate).getTime() === today.getTime(),
+  )
 
   const lowStockProducts = products.filter((p) => p.stock <= p.minStock)
 
@@ -80,6 +92,32 @@ export default function Index() {
 
   return (
     <div className="space-y-6">
+      {(overduePayables.length > 0 || dueTodayPayables.length > 0) && (
+        <div className="flex flex-col gap-2">
+          {overduePayables.length > 0 && (
+            <Alert
+              variant="destructive"
+              className="bg-destructive/10 border-destructive/20 text-destructive"
+            >
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Atenção: Contas Atrasadas</AlertTitle>
+              <AlertDescription>
+                Você possui {overduePayables.length} conta(s) a pagar que já passaram do vencimento.
+              </AlertDescription>
+            </Alert>
+          )}
+          {dueTodayPayables.length > 0 && (
+            <Alert className="bg-amber-50 border-amber-200 text-amber-800 [&>svg]:text-amber-600">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Avisos de Vencimento</AlertTitle>
+              <AlertDescription>
+                Você possui {dueTodayPayables.length} conta(s) a pagar com vencimento para hoje.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
+
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Business Intelligence</h1>
         <p className="text-muted-foreground">
@@ -184,7 +222,7 @@ export default function Index() {
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(val) => `R${val / 1000}k`}
+                    tickFormatter={(val) => `R$${val / 1000}k`}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Bar
@@ -252,7 +290,7 @@ export default function Index() {
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(val) => `R${val / 1000}k`}
+                    tickFormatter={(val) => `R$${val / 1000}k`}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Line
@@ -283,7 +321,7 @@ export default function Index() {
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(val) => `R${val / 1000}k`}
+                    tickFormatter={(val) => `R$${val / 1000}k`}
                   />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Bar
