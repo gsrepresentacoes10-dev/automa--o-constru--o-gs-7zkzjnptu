@@ -36,6 +36,7 @@ export interface Product {
   stock: number
   minStock: number
   leadTime?: number
+  isEssential?: boolean
 }
 
 export type MovementType = 'Entrada' | 'Saída'
@@ -290,6 +291,7 @@ const initialProducts: Product[] = [
     stock: 12,
     minStock: 50,
     leadTime: 3,
+    isEssential: true,
   },
   {
     id: '2',
@@ -317,6 +319,7 @@ const initialProducts: Product[] = [
     costPrice: 20.0,
     stock: 45,
     minStock: 30,
+    isEssential: true,
   },
   {
     id: '4',
@@ -623,6 +626,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const cashbackPercentage = 2
 
+  const checkZeroStockAlert = (product: Product, oldStock: number, newStock: number) => {
+    if (newStock === 0 && oldStock > 0 && product.isEssential) {
+      setTimeout(() => {
+        toast({
+          title: 'Atenção: Estoque Zero',
+          description: `Estoque Zero: Produto essencial ${product.name} atingiu o saldo zero.`,
+          variant: 'destructive',
+        })
+      }, 500)
+    }
+  }
+
   const handleSetRole = (newRole: Role) => {
     setRole(newRole)
     const matchedUser = users.find((u) => u.role === newRole)
@@ -682,6 +697,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const product = products.find((p) => p.id === id)
     if (product && productData.stock !== undefined && productData.stock !== product.stock) {
       const newStock = productData.stock
+      checkZeroStockAlert(product, product.stock, newStock)
+
       const type: MovementType = newStock > product.stock ? 'Entrada' : 'Saída'
       const qty = Math.abs(newStock - product.stock)
       const movement: StockMovement = {
@@ -727,13 +744,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    checkZeroStockAlert(product, product.stock, newStock)
+
     const movement: StockMovement = {
       id: `MOV-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       productId,
       date: new Date().toISOString(),
       type,
       quantity,
-      origin: `Ajuste Manual: ${reason}`,
+      origin: reason,
       balanceAfter: newStock,
       userName: currentUser.name,
     }
@@ -994,6 +1013,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const p = updatedProducts[pIndex]
         const newStock = p.stock - soldItem.quantity
 
+        checkZeroStockAlert(p, p.stock, newStock)
+
         newMovements.push({
           id: `MOV-${Date.now()}-${p.id}-${Math.floor(Math.random() * 1000)}`,
           productId: p.id,
@@ -1072,6 +1093,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const product = updatedProducts[productIndex]
             const diff = newQty - oldQty
             const newStock = product.stock - diff
+
+            checkZeroStockAlert(product, product.stock, newStock)
 
             newMovements.push({
               id: `MOV-${Date.now()}-${productId}-EDIT-${Math.floor(Math.random() * 1000)}`,
@@ -1243,6 +1266,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const product = prevProducts.find((p) => p.id === t.productId)
         if (product) {
           const newStock = product.stock - t.quantity!
+          checkZeroStockAlert(product, product.stock, newStock)
+
           setStockMovements((prev) => [
             {
               id: `MOV-${Date.now()}-${product.id}`,
@@ -1306,6 +1331,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const newP = updatedProducts.find((p) => p.id === newProductId)
             if (newP) {
               const appliedStock = newP.stock - newQuantity
+              checkZeroStockAlert(newP, newP.stock, appliedStock)
+
               updatedProducts = updatedProducts.map((p) =>
                 p.id === newProductId ? { ...p, stock: appliedStock } : p,
               )

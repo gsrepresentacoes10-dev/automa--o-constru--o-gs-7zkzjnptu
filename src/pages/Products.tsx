@@ -4,6 +4,7 @@ import { formatCurrency } from '@/lib/utils'
 import { Plus, Search, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -50,6 +51,7 @@ export default function Products() {
       costPrice: Number(formData.get('costPrice')),
       stock: Number(formData.get('stock')),
       minStock: Number(formData.get('minStock')),
+      isEssential: formData.get('isEssential') === 'on',
     }
 
     if (editingProduct) {
@@ -111,7 +113,17 @@ export default function Products() {
               {filteredProducts.map((product) => (
                 <TableRow key={product.id}>
                   <TableCell>
-                    <p className="font-medium text-sm">{product.name}</p>
+                    <div className="font-medium text-sm flex items-center gap-2">
+                      {product.name}
+                      {product.isEssential && (
+                        <Badge
+                          variant="destructive"
+                          className="h-4 px-1 py-0 text-[9px] bg-red-100 text-red-700 hover:bg-red-200 border-red-200"
+                        >
+                          Essencial
+                        </Badge>
+                      )}
+                    </div>
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal">
                         SKU: {product.sku}
@@ -277,6 +289,21 @@ export default function Products() {
                     type="number"
                     required
                     defaultValue={editingProduct?.minStock ?? 5}
+                  />
+                </div>
+                <div className="col-span-2 flex items-center justify-between border rounded-md p-3 bg-background mt-1">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="isEssential" className="text-sm font-medium">
+                      Produto Essencial
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Receba alertas push (notificações) quando o estoque chegar a zero.
+                    </p>
+                  </div>
+                  <Switch
+                    id="isEssential"
+                    name="isEssential"
+                    defaultChecked={!!editingProduct?.isEssential}
                   />
                 </div>
               </div>

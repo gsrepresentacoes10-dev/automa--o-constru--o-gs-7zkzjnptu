@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppContext, Product, MovementType } from '@/context/AppContext'
-import { formatCurrency, cn } from '@/lib/utils'
+import { formatCurrency, cn, exportPurchasesVsEntriesToExcel } from '@/lib/utils'
 import {
   Search,
   AlertTriangle,
@@ -14,6 +14,8 @@ import {
   PackageOpen,
   DollarSign,
   Printer,
+  FileSpreadsheet,
+  CheckCircle2,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -84,6 +86,7 @@ export default function Inventory() {
   const [adjustmentReason, setAdjustmentReason] = useState('')
 
   const [reportPeriod, setReportPeriod] = useState('30')
+  const [auditCounts, setAuditCounts] = useState<Record<string, string>>({})
 
   const productSupplierMap = useMemo(() => {
     const map = new Map<string, string>()
@@ -203,9 +206,30 @@ export default function Inventory() {
     setAdjustmentReason('')
   }
 
+  const handleAuditAdjust = (productId: string, physicalCount: number) => {
+    const product = products.find((p) => p.id === productId)
+    if (!product) return
+
+    const diff = physicalCount - product.stock
+    if (diff === 0) return
+
+    const type = diff > 0 ? 'Entrada' : 'Saída'
+    addManualStockAdjustment(productId, type, Math.abs(diff), 'Ajuste de Auditoria')
+
+    setAuditCounts((prev) => {
+      const next = { ...prev }
+      delete next[productId]
+      return next
+    })
+  }
+
+  const handlePrintReport = () => {
+    window.print()
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Gestão de Estoque</h1>
           <p className="text-muted-foreground">
@@ -227,13 +251,14 @@ export default function Inventory() {
       </div>
 
       <Tabs defaultValue="estoque" className="space-y-6">
-        <TabsList className="w-full sm:w-auto overflow-x-auto justify-start border bg-muted/20">
+        <TabsList className="w-full sm:w-auto overflow-x-auto justify-start border bg-muted/20 print:hidden">
           <TabsTrigger value="estoque">Estoque Físico</TabsTrigger>
           <TabsTrigger value="movimentacoes">Histórico de Movimentações</TabsTrigger>
+          <TabsTrigger value="auditoria">Auditoria de Inventário</TabsTrigger>
           <TabsTrigger value="relatorio">Compras vs Entradas</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="estoque" className="space-y-6 mt-0">
+        <TabsContent value="estoque" className="space-y-6 mt-0 print:hidden">
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -354,6 +379,14 @@ export default function Inventory() {
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>
+                            )}
+                            {product.isEssential && (
+                              <Badge
+                                variant="destructive"
+                                className="h-4 px-1 py-0 text-[9px] bg-red-100 text-red-700 border-red-200"
+                              >
+                                Essencial
+                              </Badge>
                             )}
                           </div>
                           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -491,7 +524,7 @@ export default function Inventory() {
           </div>
         </TabsContent>
 
-        <TabsContent value="movimentacoes" className="space-y-6 mt-0">
+        <TabsContent value="movimentacoes" className="space-y-6 mt-0 print:hidden">
           <Card>
             <CardHeader>
               <CardTitle>Histórico Geral de Movimentações</CardTitle>
@@ -570,9 +603,147 @@ export default function Inventory() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="relatorio" className="space-y-6 mt-0">
+        <TabsContent value="auditoria" className="space-y-6 mt-0 print:hidden">
           <Card>
-            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <CardHeader>
+              <CardTitle>Auditoria de Inventário (Rotativo)</CardTitle>
+              <CardDescription>
+                Realize a contagem física dos produtos e registre discrepâncias para manter a
+                acurácia do seu estoque em dia.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="p-4 border-b bg-muted/20 mb-4 rounded-md">
+                <div className="relative max-w-md">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar produto para auditar..."
+                    className="pl-9"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="overflow-x-auto border rounded-md">
+                <Table>
+                  <TableHeader className="bg-muted/30">
+                    <TableRow>
+                      <TableHead>Produto</TableHead>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead className="text-center">Saldo Sistema</TableHead>
+                      <TableHead className="text-center w-36">Saldo Físico</TableHead>
+                      <TableHead className="text-center w-32">Divergência</TableHead>
+                      <TableHead className="text-right">Ação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredProducts.map((product) => {
+                      const physicalCountStr = auditCounts[product.id]
+                      const physicalCount =
+                        physicalCountStr !== undefined && physicalCountStr !== ''
+                          ? Number(physicalCountStr)
+                          : null
+                      const diff = physicalCount !== null ? physicalCount - product.stock : null
+
+                      return (
+                        <TableRow key={product.id}>
+                          <TableCell>
+                            <div className="font-medium">{product.name}</div>
+                            <div className="text-xs text-muted-foreground">SKU: {product.sku}</div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{product.category}</Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <span className="font-bold text-muted-foreground">{product.stock}</span>{' '}
+                            <span className="text-xs">{product.unit}</span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Input
+                              type="number"
+                              min="0"
+                              placeholder="Contagem"
+                              value={physicalCountStr || ''}
+                              onChange={(e) =>
+                                setAuditCounts((prev) => ({
+                                  ...prev,
+                                  [product.id]: e.target.value,
+                                }))
+                              }
+                              className="text-center h-9"
+                            />
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {diff !== null && (
+                              <span
+                                className={cn(
+                                  'font-bold px-2 py-1 rounded-md text-sm',
+                                  diff > 0
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : diff < 0
+                                      ? 'bg-destructive/10 text-destructive'
+                                      : 'text-muted-foreground',
+                                )}
+                              >
+                                {diff > 0 ? `+${diff}` : diff}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right align-middle">
+                            {diff !== null && diff !== 0 ? (
+                              <Button
+                                size="sm"
+                                onClick={() => handleAuditAdjust(product.id, physicalCount!)}
+                              >
+                                Ajustar Inventário
+                              </Button>
+                            ) : diff === 0 ? (
+                              <div className="flex items-center justify-end text-emerald-600 text-sm font-medium">
+                                <CheckCircle2 className="w-4 h-4 mr-1" /> OK
+                              </div>
+                            ) : null}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                    {filteredProducts.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          Nenhum produto encontrado.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="relatorio" className="space-y-6 mt-0 print:m-0 print:p-0">
+          <div className="hidden print:block w-full text-black mb-6 border-b pb-4 border-black">
+            <h1 className="text-2xl font-bold uppercase tracking-wider">
+              Relatório de Compras vs. Entradas
+            </h1>
+            <div className="mt-2 text-sm space-y-1">
+              <p>
+                <strong>Data da Geração:</strong>{' '}
+                {new Date().toLocaleDateString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </p>
+              <p>
+                <strong>Período Coberto:</strong> Últimos {reportPeriod} dias
+              </p>
+            </div>
+          </div>
+
+          <Card className="print:shadow-none print:border-none">
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 print:hidden">
               <div>
                 <CardTitle>Relatório de Compras vs. Entradas</CardTitle>
                 <CardDescription>
@@ -580,42 +751,95 @@ export default function Inventory() {
                   estoque.
                 </CardDescription>
               </div>
-              <Select value={reportPeriod} onValueChange={setReportPeriod}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7">Últimos 7 dias</SelectItem>
-                  <SelectItem value="15">Últimos 15 dias</SelectItem>
-                  <SelectItem value="30">Últimos 30 dias</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={reportPeriod} onValueChange={setReportPeriod}>
+                  <SelectTrigger className="w-[160px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="7">Últimos 7 dias</SelectItem>
+                    <SelectItem value="15">Últimos 15 dias</SelectItem>
+                    <SelectItem value="30">Últimos 30 dias</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" onClick={handlePrintReport}>
+                  <FileText className="h-4 w-4 mr-2" /> Exportar PDF
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() =>
+                    exportPurchasesVsEntriesToExcel(purchasesVsEntriesData, reportPeriod)
+                  }
+                >
+                  <FileSpreadsheet className="h-4 w-4 mr-2" /> Exportar Excel
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <ChartContainer config={chartConfig} className="h-[350px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={purchasesVsEntriesData}
-                    margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="displayDate" axisLine={false} tickLine={false} />
-                    <YAxis axisLine={false} tickLine={false} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar
-                      dataKey="volumeComprado"
-                      fill="var(--color-volumeComprado)"
-                      radius={[4, 4, 0, 0]}
-                    />
-                    <Bar
-                      dataKey="volumeEntregue"
-                      fill="var(--color-volumeEntregue)"
-                      radius={[4, 4, 0, 0]}
-                    />
-                    <ChartLegend content={<ChartLegendContent />} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
+              <div className="mb-8">
+                <ChartContainer config={chartConfig} className="h-[350px] w-full print:h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={purchasesVsEntriesData}
+                      margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="displayDate" axisLine={false} tickLine={false} />
+                      <YAxis axisLine={false} tickLine={false} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar
+                        dataKey="volumeComprado"
+                        fill="var(--color-volumeComprado)"
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="volumeEntregue"
+                        fill="var(--color-volumeEntregue)"
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <ChartLegend content={<ChartLegendContent />} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden print:border-black print:border">
+                <Table>
+                  <TableHeader className="bg-muted/50 print:bg-gray-100">
+                    <TableRow className="print:border-black">
+                      <TableHead className="print:text-black font-bold">Data</TableHead>
+                      <TableHead className="text-right print:text-black font-bold">
+                        Volume Comprado (Pedidos)
+                      </TableHead>
+                      <TableHead className="text-right print:text-black font-bold">
+                        Volume Entregue (Físico)
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {purchasesVsEntriesData.map((dataRow, idx) => (
+                      <TableRow key={idx} className="print:border-black">
+                        <TableCell className="font-medium print:text-black">
+                          {dataRow.displayDate}
+                        </TableCell>
+                        <TableCell className="text-right print:text-black">
+                          {dataRow.volumeComprado}
+                        </TableCell>
+                        <TableCell className="text-right print:text-black">
+                          {dataRow.volumeEntregue}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {purchasesVsEntriesData.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center py-6 text-muted-foreground">
+                          Nenhum dado no período.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
