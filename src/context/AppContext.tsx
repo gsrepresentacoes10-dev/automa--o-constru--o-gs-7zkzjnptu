@@ -66,6 +66,12 @@ export interface SaleItem {
   total: number
 }
 
+export interface SaleHistoryLog {
+  timestamp: string
+  action: string
+  userName: string
+}
+
 export interface Sale {
   id: string
   date: string
@@ -84,6 +90,7 @@ export interface Sale {
   sellerCode?: string
   whatsappReminder?: boolean
   whatsappReminderDate?: string
+  history?: SaleHistoryLog[]
 }
 
 export interface PreSale {
@@ -212,10 +219,11 @@ interface AppContextType {
   ) => void
   sales: Sale[]
   setSales: (sales: Sale[]) => void
-  addSale: (sale: Omit<Sale, 'id' | 'date' | 'status'>) => Sale
+  addSale: (sale: Omit<Sale, 'id' | 'date' | 'status' | 'history'>) => Sale
   updateSale: (id: string, saleData: Partial<Sale>) => void
   cancelSale: (id: string) => void
   markSaleAsPaid: (id: string) => void
+  logSaleAction: (id: string, action: string) => void
   preSales: PreSale[]
   addPreSale: (preSale: Omit<PreSale, 'id' | 'date'>) => void
   updatePreSale: (id: string, preSale: Omit<PreSale, 'id' | 'date'>) => void
@@ -875,7 +883,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  const addSale = (newSale: Omit<Sale, 'id' | 'date' | 'status'>): Sale => {
+  const logSaleAction = (id: string, action: string) => {
+    setSales((prev) =>
+      prev.map((s) => {
+        if (s.id === id) {
+          return {
+            ...s,
+            history: [
+              ...(s.history || []),
+              {
+                timestamp: new Date().toISOString(),
+                action,
+                userName: currentUser.name,
+              },
+            ],
+          }
+        }
+        return s
+      }),
+    )
+  }
+
+  const addSale = (newSale: Omit<Sale, 'id' | 'date' | 'status' | 'history'>): Sale => {
     const isCredit = newSale.paymentMethod === 'Venda a Prazo'
     const sale: Sale = {
       ...newSale,
@@ -883,6 +912,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       date: new Date().toISOString(),
       status: isCredit ? 'Pendente' : 'Pago',
       dueDate: isCredit ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : undefined,
+      history: [
+        {
+          timestamp: new Date().toISOString(),
+          action: 'Criação do Pedido',
+          userName: newSale.sellerName || currentUser.name,
+        },
+      ],
     }
 
     if (!sale.sellerId && !sale.sellerName) {
@@ -1043,7 +1079,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setStockMovements((prev) => [...newMovements, ...prev])
     }
 
-    setSales((prev) => prev.map((s) => (s.id === id ? { ...s, status: 'Cancelado' } : s)))
+    setSales((prev) =>
+      prev.map((s) => {
+        if (s.id === id) {
+          return {
+            ...s,
+            status: 'Cancelado',
+            history: [
+              ...(s.history || []),
+              {
+                timestamp: new Date().toISOString(),
+                action: 'Cancelamento',
+                userName: currentUser.name,
+              },
+            ],
+          }
+        }
+        return s
+      }),
+    )
 
     if (sale.customerId) {
       setCustomers((prev) =>
@@ -1263,6 +1317,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateSale,
         cancelSale,
         markSaleAsPaid,
+        logSaleAction,
         preSales,
         addPreSale,
         updatePreSale,

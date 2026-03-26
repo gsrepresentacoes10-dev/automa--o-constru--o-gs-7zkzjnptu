@@ -29,6 +29,7 @@ import {
   Camera,
   ShieldAlert,
   Ban,
+  Info,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,6 +63,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
 import { CustomerCombobox } from '@/components/CustomerCombobox'
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
 
@@ -114,6 +116,10 @@ export default function Sales() {
 
   const [saleToCancel, setSaleToCancel] = useState<string | null>(null)
 
+  // Cloning State
+  const [isClonedOrder, setIsClonedOrder] = useState(false)
+  const [clonedSaleId, setClonedSaleId] = useState<string | null>(null)
+
   useEffect(() => {
     if (isCheckoutOpen) {
       setIsDiscountApproved(false)
@@ -151,6 +157,9 @@ export default function Sales() {
       setUseCashback(false)
       setActiveTab('pdv')
 
+      setIsClonedOrder(true)
+      setClonedSaleId(saleToClone.id)
+
       toast({
         title: 'Pedido Carregado',
         description: `O pedido ${saleToClone.id} foi clonado para manutenção e re-faturamento.`,
@@ -174,6 +183,8 @@ export default function Sales() {
     setDiscountValue('')
     setActivePreSaleId(null)
     setPreSaleCustomerName('')
+    setIsClonedOrder(false)
+    setClonedSaleId(null)
   }
 
   const addToCart = (product: Product) => {
@@ -454,235 +465,249 @@ export default function Sales() {
         </TabsList>
       </div>
 
-      <TabsContent value="pdv" className="flex flex-col lg:flex-row gap-6 flex-1 mt-0 print:hidden">
-        {/* Left Panel */}
-        <div className="flex-1 flex flex-col gap-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <form onSubmit={handleBarcodeScan} className="relative flex gap-2">
-              <div className="relative flex-1">
-                <ScanLine className="absolute left-3 top-3 h-5 w-5 text-primary" />
+      <TabsContent value="pdv" className="flex flex-col flex-1 mt-0 print:hidden gap-4">
+        {isClonedOrder && (
+          <Alert className="bg-blue-50 border-blue-200 text-blue-800 shadow-sm">
+            <Info className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-blue-900 font-bold">Aviso de Clonagem</AlertTitle>
+            <AlertDescription className="text-blue-800">
+              Você está trabalhando em uma CÓPIA para fins de re-faturamento. Ordem de origem:{' '}
+              <strong>{clonedSaleId}</strong>
+            </AlertDescription>
+          </Alert>
+        )}
+        <div className="flex flex-col lg:flex-row gap-6 flex-1 h-full">
+          {/* Left Panel */}
+          <div className="flex-1 flex flex-col gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <form onSubmit={handleBarcodeScan} className="relative flex gap-2">
+                <div className="relative flex-1">
+                  <ScanLine className="absolute left-3 top-3 h-5 w-5 text-primary" />
+                  <Input
+                    placeholder="Escanear (USB)..."
+                    className="pl-10 h-12 shadow-sm border-primary/50 focus-visible:ring-primary"
+                    value={barcode}
+                    onChange={(e) => setBarcode(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12 w-12 shrink-0 border-primary/50 text-primary hover:bg-primary/10"
+                  onClick={() => setIsScannerOpen(true)}
+                  title="Escanear com Câmera"
+                >
+                  <Camera className="h-5 w-5" />
+                </Button>
+                <button type="submit" className="hidden" />
+              </form>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
                 <Input
-                  placeholder="Escanear (USB)..."
-                  className="pl-10 h-12 shadow-sm border-primary/50 focus-visible:ring-primary"
-                  value={barcode}
-                  onChange={(e) => setBarcode(e.target.value)}
-                  autoFocus
+                  placeholder="Buscar por nome, SKU ou EAN..."
+                  className="pl-10 h-12 shadow-sm"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-12 w-12 shrink-0 border-primary/50 text-primary hover:bg-primary/10"
-                onClick={() => setIsScannerOpen(true)}
-                title="Escanear com Câmera"
-              >
-                <Camera className="h-5 w-5" />
-              </Button>
-              <button type="submit" className="hidden" />
-            </form>
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-5 w-5 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por nome, SKU ou EAN..."
-                className="pl-10 h-12 shadow-sm"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
             </div>
+
+            <ScrollArea className="flex-1 bg-card border rounded-lg shadow-sm h-[calc(100vh-16rem)]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
+                {filteredProducts.map((product) => (
+                  <div
+                    key={product.id}
+                    className="border p-3 rounded-lg hover:border-primary cursor-pointer transition-colors flex flex-col justify-between"
+                    onClick={() => addToCart(product)}
+                  >
+                    <div>
+                      <p className="font-semibold text-sm leading-tight mb-1">{product.name}</p>
+                      <p className="text-[10px] text-muted-foreground mb-1">
+                        Cód: {product.barcode || product.sku}
+                      </p>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Estoque: {product.stock} {product.unit}
+                      </p>
+                    </div>
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="font-bold text-primary">
+                        {formatCurrency(product.price)}
+                      </span>
+                      <div className="bg-primary/10 p-1.5 rounded-md text-primary">
+                        <ShoppingCart className="h-4 w-4" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
           </div>
 
-          <ScrollArea className="flex-1 bg-card border rounded-lg shadow-sm h-[calc(100vh-16rem)]">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4">
-              {filteredProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="border p-3 rounded-lg hover:border-primary cursor-pointer transition-colors flex flex-col justify-between"
-                  onClick={() => addToCart(product)}
+          {/* Right Panel: Cart */}
+          <Card className="w-full lg:w-[400px] flex flex-col shadow-md">
+            <CardHeader className="bg-muted/30 pb-4 border-b flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" /> Carrinho
+                {activePreSaleId && (
+                  <Badge variant="secondary" className="ml-1 text-[10px] uppercase">
+                    Editando {activePreSaleId}
+                  </Badge>
+                )}
+              </CardTitle>
+              {(cart.length > 0 || activePreSaleId || isClonedOrder) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-2 text-muted-foreground hover:text-foreground"
+                  onClick={clearCart}
                 >
-                  <div>
-                    <p className="font-semibold text-sm leading-tight mb-1">{product.name}</p>
-                    <p className="text-[10px] text-muted-foreground mb-1">
-                      Cód: {product.barcode || product.sku}
-                    </p>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      Estoque: {product.stock} {product.unit}
-                    </p>
-                  </div>
-                  <div className="flex justify-between items-center mt-2">
-                    <span className="font-bold text-primary">{formatCurrency(product.price)}</span>
-                    <div className="bg-primary/10 p-1.5 rounded-md text-primary">
-                      <ShoppingCart className="h-4 w-4" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-        </div>
-
-        {/* Right Panel: Cart */}
-        <Card className="w-full lg:w-[400px] flex flex-col shadow-md">
-          <CardHeader className="bg-muted/30 pb-4 border-b flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5" /> Carrinho
-              {activePreSaleId && (
-                <Badge variant="secondary" className="ml-1 text-[10px] uppercase">
-                  Editando {activePreSaleId}
-                </Badge>
+                  <RotateCcw className="h-3 w-3 mr-1" /> Limpar
+                </Button>
               )}
-            </CardTitle>
-            {(cart.length > 0 || activePreSaleId) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 px-2 text-muted-foreground hover:text-foreground"
-                onClick={clearCart}
-              >
-                <RotateCcw className="h-3 w-3 mr-1" /> Limpar
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent className="flex-1 overflow-hidden p-0 flex flex-col">
-            <ScrollArea className="flex-1 p-4">
-              {cart.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-20">
-                  <ShoppingCart className="h-12 w-12 mb-4 opacity-20" />
-                  <p>O carrinho está vazio</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {cart.map((item) => (
-                    <div
-                      key={item.product.id}
-                      className="flex justify-between items-start border-b pb-3"
-                    >
-                      <div className="flex-1 pr-2">
-                        <p className="font-medium text-sm leading-tight">{item.product.name}</p>
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {formatCurrency(item.product.price)} / {item.product.unit}
-                        </div>
-                        <div className="flex items-center gap-1 mt-2">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 shrink-0"
-                            onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <Input
-                            type="number"
-                            min="0"
-                            className="h-8 w-16 text-center px-1 text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            value={item.quantity === 0 ? '' : item.quantity}
-                            onChange={(e) => {
-                              const val = e.target.value
-                              if (val === '') {
-                                updateQuantity(item.product.id, 0, true)
-                              } else {
-                                const num = parseInt(val, 10)
-                                if (!isNaN(num)) {
-                                  updateQuantity(item.product.id, num, true)
+            </CardHeader>
+            <CardContent className="flex-1 overflow-hidden p-0 flex flex-col">
+              <ScrollArea className="flex-1 p-4">
+                {cart.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-20">
+                    <ShoppingCart className="h-12 w-12 mb-4 opacity-20" />
+                    <p>O carrinho está vazio</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {cart.map((item) => (
+                      <div
+                        key={item.product.id}
+                        className="flex justify-between items-start border-b pb-3"
+                      >
+                        <div className="flex-1 pr-2">
+                          <p className="font-medium text-sm leading-tight">{item.product.name}</p>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {formatCurrency(item.product.price)} / {item.product.unit}
+                          </div>
+                          <div className="flex items-center gap-1 mt-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 shrink-0"
+                              onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              min="0"
+                              className="h-8 w-16 text-center px-1 text-sm font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              value={item.quantity === 0 ? '' : item.quantity}
+                              onChange={(e) => {
+                                const val = e.target.value
+                                if (val === '') {
+                                  updateQuantity(item.product.id, 0, true)
+                                } else {
+                                  const num = parseInt(val, 10)
+                                  if (!isNaN(num)) {
+                                    updateQuantity(item.product.id, num, true)
+                                  }
                                 }
-                              }
-                            }}
-                            onBlur={() => {
-                              if (item.quantity === 0) {
-                                setCart((c) => c.filter((i) => i.product.id !== item.product.id))
-                              }
-                            }}
-                          />
+                              }}
+                              onBlur={() => {
+                                if (item.quantity === 0) {
+                                  setCart((c) => c.filter((i) => i.product.id !== item.product.id))
+                                }
+                              }}
+                            />
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 shrink-0"
+                              onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <span className="font-bold text-sm">{formatCurrency(item.total)}</span>
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="icon"
-                            className="h-8 w-8 shrink-0"
-                            onClick={() => updateQuantity(item.product.id, item.quantity + 1)}
+                            className="h-6 w-6 text-destructive"
+                            onClick={() =>
+                              setCart((c) => c.filter((i) => i.product.id !== item.product.id))
+                            }
                           >
-                            <Plus className="h-3 w-3" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <span className="font-bold text-sm">{formatCurrency(item.total)}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-destructive"
-                          onClick={() =>
-                            setCart((c) => c.filter((i) => i.product.id !== item.product.id))
-                          }
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+              {cart.length > 0 && (
+                <div className="p-4 border-t bg-muted/5 space-y-3">
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Subtotal</span>
+                    <span>{formatCurrency(cartTotal)}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Aplicar Desconto</Label>
+                    <div className="flex items-center gap-2">
+                      <Tabs
+                        value={discountType}
+                        onValueChange={(v) => setDiscountType(v as 'percent' | 'fixed')}
+                        className="w-[120px]"
+                      >
+                        <TabsList className="grid w-full grid-cols-2 h-9">
+                          <TabsTrigger value="percent" className="text-xs">
+                            %
+                          </TabsTrigger>
+                          <TabsTrigger value="fixed" className="text-xs">
+                            R$
+                          </TabsTrigger>
+                        </TabsList>
+                      </Tabs>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        className="h-9"
+                        value={discountValue}
+                        onChange={(e) => setDiscountValue(e.target.value)}
+                        min="0"
+                      />
                     </div>
-                  ))}
-                </div>
-              )}
-            </ScrollArea>
-            {cart.length > 0 && (
-              <div className="p-4 border-t bg-muted/5 space-y-3">
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>Subtotal</span>
-                  <span>{formatCurrency(cartTotal)}</span>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Aplicar Desconto</Label>
-                  <div className="flex items-center gap-2">
-                    <Tabs
-                      value={discountType}
-                      onValueChange={(v) => setDiscountType(v as 'percent' | 'fixed')}
-                      className="w-[120px]"
-                    >
-                      <TabsList className="grid w-full grid-cols-2 h-9">
-                        <TabsTrigger value="percent" className="text-xs">
-                          %
-                        </TabsTrigger>
-                        <TabsTrigger value="fixed" className="text-xs">
-                          R$
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                    <Input
-                      type="number"
-                      placeholder="0"
-                      className="h-9"
-                      value={discountValue}
-                      onChange={(e) => setDiscountValue(e.target.value)}
-                      min="0"
-                    />
                   </div>
                 </div>
+              )}
+            </CardContent>
+            <CardFooter className="flex-col gap-3 border-t p-4 bg-muted/10">
+              <div className="w-full flex justify-between items-center text-lg mb-1">
+                <span className="font-semibold text-muted-foreground">Total Geral</span>
+                <span className="font-bold text-2xl text-primary">
+                  {formatCurrency(cartTotalWithDiscount)}
+                </span>
               </div>
-            )}
-          </CardContent>
-          <CardFooter className="flex-col gap-3 border-t p-4 bg-muted/10">
-            <div className="w-full flex justify-between items-center text-lg mb-1">
-              <span className="font-semibold text-muted-foreground">Total Geral</span>
-              <span className="font-bold text-2xl text-primary">
-                {formatCurrency(cartTotalWithDiscount)}
-              </span>
-            </div>
-            <div className="flex gap-2 w-full">
-              <Button
-                variant="outline"
-                className="flex-1 h-12 bg-background shadow-sm hover:bg-muted font-medium"
-                disabled={!hasValidItems}
-                onClick={() => setIsSavePreSaleOpen(true)}
-              >
-                <Save className="mr-2 h-4 w-4" />
-                Salvar Pré-venda
-              </Button>
-              <Button
-                className="flex-1 h-12 font-bold"
-                disabled={!hasValidItems}
-                onClick={() => setIsCheckoutOpen(true)}
-              >
-                Pagamento
-              </Button>
-            </div>
-          </CardFooter>
-        </Card>
+              <div className="flex gap-2 w-full">
+                <Button
+                  variant="outline"
+                  className="flex-1 h-12 bg-background shadow-sm hover:bg-muted font-medium"
+                  disabled={!hasValidItems}
+                  onClick={() => setIsSavePreSaleOpen(true)}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  Salvar Pré-venda
+                </Button>
+                <Button
+                  className="flex-1 h-12 font-bold"
+                  disabled={!hasValidItems}
+                  onClick={() => setIsCheckoutOpen(true)}
+                >
+                  Pagamento
+                </Button>
+              </div>
+            </CardFooter>
+          </Card>
+        </div>
       </TabsContent>
 
       <TabsContent value="prevendas" className="flex-1 mt-0">

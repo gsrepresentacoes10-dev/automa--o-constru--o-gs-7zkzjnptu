@@ -1,8 +1,8 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAppContext, Sale } from '@/context/AppContext'
-import { formatCurrency } from '@/lib/utils'
-import { Search, CalendarDays, Printer, MoreHorizontal, Copy, Ban } from 'lucide-react'
+import { formatCurrency, cn } from '@/lib/utils'
+import { Search, CalendarDays, Printer, MoreHorizontal, Copy, Ban, FileText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,16 +32,30 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 export default function SalesSearch() {
   const navigate = useNavigate()
-  const { sales, cancelSale } = useAppContext()
+  const { sales, cancelSale, logSaleAction } = useAppContext()
   const [orderNumber, setOrderNumber] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [filteredSales, setFilteredSales] = useState<Sale[]>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null)
+  const [detailsSale, setDetailsSale] = useState<Sale | null>(null)
 
   const handleSearch = () => {
     let filtered = sales
@@ -62,13 +76,26 @@ export default function SalesSearch() {
       filtered = filtered.filter((s) => new Date(s.date) <= to)
     }
 
+    if (statusFilter === 'active') {
+      filtered = filtered.filter((s) => s.status !== 'Cancelado')
+    } else if (statusFilter === 'cancelled') {
+      filtered = filtered.filter((s) => s.status === 'Cancelado')
+    }
+
     setFilteredSales(
       filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     )
     setHasSearched(true)
   }
 
+  useEffect(() => {
+    if (hasSearched) {
+      handleSearch()
+    }
+  }, [statusFilter])
+
   const handleClone = (sale: Sale) => {
+    logSaleAction(sale.id, 'Clonagem para re-faturamento')
     navigate('/vendas', { state: { cloneSale: sale } })
   }
 
@@ -87,6 +114,19 @@ export default function SalesSearch() {
       (acc, sale) => acc + (sale.status !== 'Cancelado' ? sale.total : 0),
       0,
     )
+  }, [filteredSales])
+
+  const performanceData = useMemo(() => {
+    const active = filteredSales
+      .filter((s) => s.status !== 'Cancelado')
+      .reduce((acc, s) => acc + s.total, 0)
+    const cancelled = filteredSales
+      .filter((s) => s.status === 'Cancelado')
+      .reduce((acc, s) => acc + s.total, 0)
+    return [
+      { status: 'Efetivadas', total: active, fill: 'hsl(var(--primary))' },
+      { status: 'Canceladas', total: cancelled, fill: 'hsl(var(--destructive))' },
+    ]
   }, [filteredSales])
 
   const handlePrint = () => {
@@ -130,6 +170,19 @@ export default function SalesSearch() {
               <Label>Data Fim</Label>
               <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </div>
+            <div className="space-y-1.5 w-full lg:w-auto flex-1 max-w-[200px]">
+              <Label>Status</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="active">Ativas (Pagas/Pendentes)</SelectItem>
+                  <SelectItem value="cancelled">Canceladas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex gap-2 w-full lg:w-auto">
               <Button onClick={handleSearch} className="flex-1 lg:flex-none">
                 <Search className="mr-2 h-4 w-4" /> Pesquisar
@@ -147,7 +200,7 @@ export default function SalesSearch() {
         </Card>
 
         {hasSearched && (
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-3 mb-6">
             <Card className="md:col-span-1 border-primary/20 bg-primary/5">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -164,6 +217,52 @@ export default function SalesSearch() {
                 </p>
               </CardContent>
             </Card>
+
+            {filteredSales.length > 0 && (
+              <Card className="md:col-span-2">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    Desempenho: Efetivadas vs Canceladas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="h-[120px] pb-0">
+                  <ChartContainer
+                    config={{ total: { label: 'Total (R$)' } }}
+                    className="h-full w-full"
+                  >
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={performanceData}
+                        layout="vertical"
+                        margin={{ top: 0, right: 30, left: 0, bottom: 0 }}
+                      >
+                        <XAxis type="number" hide />
+                        <YAxis
+                          dataKey="status"
+                          type="category"
+                          width={80}
+                          tick={{ fontSize: 12 }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <ChartTooltip
+                          content={
+                            <ChartTooltipContent
+                              formatter={(value) => formatCurrency(Number(value))}
+                            />
+                          }
+                        />
+                        <Bar dataKey="total" radius={[0, 4, 4, 0]} barSize={24}>
+                          {performanceData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
@@ -224,6 +323,9 @@ export default function SalesSearch() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setDetailsSale(sale)}>
+                                <FileText className="mr-2 h-4 w-4" /> Detalhes e Histórico
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleClone(sale)}>
                                 <Copy className="mr-2 h-4 w-4" />
                                 Clonar Pedido
@@ -287,6 +389,89 @@ export default function SalesSearch() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!detailsSale} onOpenChange={(open) => !open && setDetailsSale(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Pedido {detailsSale?.id}</DialogTitle>
+          </DialogHeader>
+          <Tabs defaultValue="resumo" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="resumo">Resumo</TabsTrigger>
+              <TabsTrigger value="historico">Histórico</TabsTrigger>
+            </TabsList>
+            <TabsContent value="resumo" className="space-y-4 pt-4">
+              {detailsSale && (
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between border-b pb-1">
+                    <span className="text-muted-foreground">Cliente:</span>
+                    <span className="font-medium">
+                      {detailsSale.customer || 'Consumidor Final'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1">
+                    <span className="text-muted-foreground">Data:</span>
+                    <span>{new Date(detailsSale.date).toLocaleString('pt-BR')}</span>
+                  </div>
+                  <div className="flex justify-between border-b pb-1">
+                    <span className="text-muted-foreground">Status:</span>
+                    <Badge variant={detailsSale.status === 'Cancelado' ? 'destructive' : 'default'}>
+                      {detailsSale.status}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between border-b pb-1">
+                    <span className="text-muted-foreground">Vendedor:</span>
+                    <span>{detailsSale.sellerName || '-'}</span>
+                  </div>
+                  <div className="mt-4 pt-2">
+                    <h4 className="font-semibold mb-2">Itens:</h4>
+                    <ul className="space-y-1 max-h-[150px] overflow-y-auto pr-2">
+                      {detailsSale.items.map((item, i) => (
+                        <li key={i} className="flex justify-between">
+                          <span>
+                            {item.quantity}x {item.product.name}
+                          </span>
+                          <span>{formatCurrency(item.total)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex justify-between font-bold mt-4 pt-2 border-t text-lg">
+                      <span>Total:</span>
+                      <span className="text-primary">{formatCurrency(detailsSale.total)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="historico" className="space-y-4 pt-4">
+              <ScrollArea className="h-[250px] pr-4">
+                {detailsSale?.history && detailsSale.history.length > 0 ? (
+                  <div className="space-y-4">
+                    {detailsSale.history.map((log, i) => (
+                      <div
+                        key={i}
+                        className="flex justify-between items-center text-sm border-b pb-2"
+                      >
+                        <div>
+                          <p className="font-medium text-primary">{log.action}</p>
+                          <p className="text-xs text-muted-foreground">Por: {log.userName}</p>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(log.timestamp).toLocaleString('pt-BR')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    Nenhum histórico registrado para este pedido.
+                  </p>
+                )}
+              </ScrollArea>
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
 
       {/* Print View */}
       <div className="hidden print:block text-black bg-white w-full">
