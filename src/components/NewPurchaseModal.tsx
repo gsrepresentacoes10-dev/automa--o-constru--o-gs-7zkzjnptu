@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useAppContext } from '@/context/AppContext'
 import { formatCurrency } from '@/lib/utils'
 import { ShoppingCart, Trash2, AlertCircle } from 'lucide-react'
@@ -47,6 +47,9 @@ export function NewPurchaseModal({
   const [installments, setInstallments] = useState<{ dueDate: string; amount: number }[]>([])
   const [filterCategory, setFilterCategory] = useState('all')
 
+  const [barcodeInput, setBarcodeInput] = useState('')
+  const barcodeInputRef = useRef<HTMLInputElement>(null)
+
   const allCategories = useMemo(() => {
     const cats = new Set<string>()
     suppliers.forEach((s) => s.categories?.forEach((c) => cats.add(c)))
@@ -70,6 +73,43 @@ export function NewPurchaseModal({
       setInstallments([{ dueDate: installments[0]?.dueDate || '', amount: total }])
     }
   }, [total, installments.length])
+
+  const handleBarcodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!barcodeInput.trim()) return
+
+    const match = products.find(
+      (p) =>
+        p.barcode === barcodeInput.trim() ||
+        p.sku.toLowerCase() === barcodeInput.trim().toLowerCase(),
+    )
+
+    if (match) {
+      const existing = purchaseItems.find((i) => i.product.id === match.id)
+      if (existing) {
+        setPurchaseItems((prev) =>
+          prev.map((i) => (i.product.id === match.id ? { ...i, quantity: i.quantity + 1 } : i)),
+        )
+      } else {
+        setPurchaseItems((prev) => [
+          ...prev,
+          { product: match, quantity: 1, costPrice: match.costPrice },
+        ])
+      }
+      toast({ title: 'Produto Adicionado', description: `${match.name} (x1) inserido na nota.` })
+    } else {
+      toast({
+        variant: 'destructive',
+        title: 'Produto não encontrado',
+        description: 'Nenhum produto cadastrado com esse EAN ou SKU.',
+      })
+    }
+
+    setBarcodeInput('')
+    setTimeout(() => {
+      barcodeInputRef.current?.focus()
+    }, 50)
+  }
 
   const handleSave = () => {
     if (selectedSupplier === 'none' || purchaseItems.length === 0) {
@@ -178,7 +218,23 @@ export function NewPurchaseModal({
             </div>
 
             <div className="space-y-3">
-              <Label>Adicionar Produtos à Nota</Label>
+              <div className="flex flex-col sm:flex-row gap-4 justify-between items-end">
+                <Label className="block">Adicionar Produtos à Nota</Label>
+                <form onSubmit={handleBarcodeSubmit} className="flex gap-2 w-full sm:w-auto">
+                  <Input
+                    ref={barcodeInputRef}
+                    placeholder="Escanear Código de Barras / SKU (Enter)"
+                    value={barcodeInput}
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    className="w-full sm:w-[300px]"
+                    autoFocus
+                  />
+                  <Button type="submit" variant="secondary">
+                    Adicionar
+                  </Button>
+                </form>
+              </div>
+
               <Select
                 onValueChange={(v) => {
                   const p = products.find((x) => x.id === v)
@@ -192,7 +248,7 @@ export function NewPurchaseModal({
                 value=""
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Buscar produto..." />
+                  <SelectValue placeholder="Ou busque produto pelo nome..." />
                 </SelectTrigger>
                 <SelectContent>
                   {products.map((p) => (

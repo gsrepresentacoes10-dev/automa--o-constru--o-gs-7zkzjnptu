@@ -48,6 +48,7 @@ export interface StockMovement {
   quantity: number
   origin: string
   balanceAfter: number
+  userName?: string
 }
 
 export interface Customer {
@@ -132,7 +133,9 @@ export interface PurchaseOrder {
   id: string
   productId: string
   status: 'Aguardando Chegada' | 'Entregue' | 'Cancelado'
+  orderDate?: string
   expectedDeliveryDate: string
+  quantity?: number
   documentUrl?: string
 }
 
@@ -377,6 +380,7 @@ const initialStockMovements: StockMovement[] = initialProducts.map((p) => ({
   quantity: p.stock,
   origin: 'Saldo Inicial',
   balanceAfter: p.stock,
+  userName: 'Sistema',
 }))
 
 const initialCustomers: Customer[] = [
@@ -516,6 +520,25 @@ const initialPurchases: Purchase[] = [
   },
 ]
 
+const initialPurchaseOrders: PurchaseOrder[] = [
+  {
+    id: 'PO-1001',
+    productId: '1',
+    status: 'Aguardando Chegada',
+    orderDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    expectedDeliveryDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+    quantity: 150,
+  },
+  {
+    id: 'PO-1002',
+    productId: '3',
+    status: 'Entregue',
+    orderDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+    expectedDeliveryDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    quantity: 80,
+  },
+]
+
 const initialPayables: Payable[] = [
   {
     id: 'CP-1001',
@@ -588,7 +611,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [customers, setCustomers] = useState<Customer[]>(initialCustomers)
   const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers)
   const [purchases, setPurchases] = useState<Purchase[]>(initialPurchases)
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([])
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(initialPurchaseOrders)
   const [payables, setPayables] = useState<Payable[]>(initialPayables)
   const [quotes, setQuotes] = useState<Quote[]>(initialQuotes)
 
@@ -647,6 +670,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         quantity: product.stock,
         origin: 'Cadastro Inicial',
         balanceAfter: product.stock,
+        userName: currentUser.name,
       }
       setStockMovements((prev) => [movement, ...prev])
     }
@@ -668,6 +692,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         quantity: qty,
         origin: 'Edição de Cadastro',
         balanceAfter: newStock,
+        userName: currentUser.name,
       }
       setStockMovements((prev) => [movement, ...prev])
     }
@@ -710,6 +735,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       quantity,
       origin: `Ajuste Manual: ${reason}`,
       balanceAfter: newStock,
+      userName: currentUser.name,
     }
 
     setStockMovements((prev) => [movement, ...prev])
@@ -770,6 +796,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           quantity: pItem.quantity,
           origin: `Compra #${purchase.id}`,
           balanceAfter: newStock,
+          userName: currentUser.name,
         })
         return { ...p, stock: newStock, costPrice: pItem.costPrice }
       }
@@ -975,6 +1002,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           quantity: soldItem.quantity,
           origin: `Venda #${sale.id}`,
           balanceAfter: newStock,
+          userName: currentUser.name,
         })
 
         if (newStock <= p.minStock && p.stock > p.minStock) {
@@ -1053,6 +1081,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               quantity: Math.abs(diff),
               origin: `Edição de Venda #${oldSale.id}`,
               balanceAfter: newStock,
+              userName: currentUser.name,
             })
 
             updatedProducts[productIndex] = { ...product, stock: newStock }
@@ -1100,6 +1129,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             quantity: item.quantity,
             origin: `Estorno Venda #${sale.id}`,
             balanceAfter: newStock,
+            userName: currentUser.name,
           })
           updatedProducts[productIndex] = { ...product, stock: newStock }
         }
@@ -1222,6 +1252,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               quantity: t.quantity!,
               origin: `Caixa Rápido #${newTx.id}`,
               balanceAfter: newStock,
+              userName: currentUser.name,
             },
             ...prev,
           ])
@@ -1264,6 +1295,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                   quantity: oldQuantity,
                   origin: `Edição Caixa Reversão #${id}`,
                   balanceAfter: revertedStock,
+                  userName: currentUser.name,
                 },
                 ...prevMov,
               ])
@@ -1286,6 +1318,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                   quantity: newQuantity,
                   origin: `Edição Caixa Aplicação #${id}`,
                   balanceAfter: appliedStock,
+                  userName: currentUser.name,
                 },
                 ...prevMov,
               ])
@@ -1320,6 +1353,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 quantity: tx.quantity!,
                 origin: `Estorno Caixa #${id}`,
                 balanceAfter: newStock,
+                userName: currentUser.name,
               },
               ...prevMov,
             ])
