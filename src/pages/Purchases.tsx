@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useAppContext } from '@/context/AppContext'
 import { formatCurrency, cn } from '@/lib/utils'
 import {
@@ -10,8 +10,6 @@ import {
   Calculator,
   AlertCircle,
   FileText,
-  Plus,
-  Trash2,
   Mail,
   Printer,
   LineChart,
@@ -53,7 +51,7 @@ import {
 import { toast } from '@/hooks/use-toast'
 
 export default function Purchases() {
-  const { products, sales, suppliers, updateProduct, addPurchase, addPayable } = useAppContext()
+  const { products, sales, suppliers, updateProduct } = useAppContext()
 
   // Advanced Procurement Filters
   const [descriptionSearch, setDescriptionSearch] = useState('')
@@ -68,15 +66,6 @@ export default function Purchases() {
   const [isCalcOpen, setIsCalcOpen] = useState(false)
   const [calcProduct, setCalcProduct] = useState<any>(null)
   const [calcMargin, setCalcMargin] = useState<number>(40)
-
-  // New Purchase State
-  const [isNewPurchaseOpen, setIsNewPurchaseOpen] = useState(false)
-  const [selectedSupplier, setSelectedSupplier] = useState('none')
-  const [purchaseItems, setPurchaseItems] = useState<
-    { product: any; quantity: number; costPrice: number }[]
-  >([])
-  const [installments, setInstallments] = useState<{ dueDate: string; amount: number }[]>([])
-  const [filterCategory, setFilterCategory] = useState('all')
 
   // Order Generation State
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false)
@@ -101,30 +90,6 @@ export default function Purchases() {
     const brands = products.map((p) => p.brand).filter(Boolean) as string[]
     return Array.from(new Set(brands)).sort()
   }, [products])
-
-  const allCategories = useMemo(() => {
-    const cats = new Set<string>()
-    suppliers.forEach((s) => s.categories?.forEach((c) => cats.add(c)))
-    return Array.from(cats).sort()
-  }, [suppliers])
-
-  const filteredSuppliersForEntry = useMemo(() => {
-    if (filterCategory === 'all') return suppliers
-    return suppliers.filter((s) =>
-      s.categories?.some((c) => c.toLowerCase() === filterCategory.toLowerCase()),
-    )
-  }, [suppliers, filterCategory])
-
-  const newPurchaseTotal = useMemo(
-    () => purchaseItems.reduce((acc, item) => acc + item.quantity * item.costPrice, 0),
-    [purchaseItems],
-  )
-
-  useEffect(() => {
-    if (installments.length <= 1) {
-      setInstallments([{ dueDate: installments[0]?.dueDate || '', amount: newPurchaseTotal }])
-    }
-  }, [newPurchaseTotal])
 
   const handleLeadTimeChange = (id: string, value: string) => {
     setLeadTimeInputs((prev) => ({ ...prev, [id]: value }))
@@ -323,82 +288,6 @@ export default function Purchases() {
       .sort((a, b) => b.suggested - a.suggested)
   }, [products, sales, suppliers, forecastPeriod])
 
-  const addPurchaseItem = (productId: string) => {
-    const p = products.find((x) => x.id === productId)
-    if (!p) return
-    if (!purchaseItems.find((c) => c.product.id === p.id)) {
-      setPurchaseItems([...purchaseItems, { product: p, quantity: 1, costPrice: p.costPrice }])
-    }
-  }
-
-  const updatePurchaseItem = (id: string, field: 'quantity' | 'costPrice', value: number) => {
-    setPurchaseItems((prev) =>
-      prev.map((i) => (i.product.id === id ? { ...i, [field]: value } : i)),
-    )
-  }
-
-  const handleGenerateInstallments = (count: number) => {
-    const amountPerInst = newPurchaseTotal / count
-    const newInsts = Array.from({ length: count }).map((_, i) => {
-      const date = new Date()
-      date.setDate(date.getDate() + (i + 1) * 30) // +30 days each
-      return { dueDate: date.toISOString().split('T')[0], amount: amountPerInst }
-    })
-    setInstallments(newInsts)
-  }
-
-  const handleSavePurchase = () => {
-    if (selectedSupplier === 'none' || purchaseItems.length === 0) {
-      toast({ variant: 'destructive', title: 'Preencha os campos obrigatórios' })
-      return
-    }
-
-    const instSum = installments.reduce((acc, curr) => acc + curr.amount, 0)
-    if (installments.length === 0 || installments.some((i) => !i.dueDate || i.amount <= 0)) {
-      toast({
-        variant: 'destructive',
-        title: 'Atenção',
-        description:
-          'É necessário registrar os valores e datas de vencimento para prosseguir com a entrada de mercadoria.',
-      })
-      return
-    }
-
-    if (Math.abs(newPurchaseTotal - instSum) > 0.01) {
-      toast({
-        variant: 'destructive',
-        title: 'Valores Incorretos',
-        description: 'A soma das parcelas deve ser exatamente igual ao valor total da nota.',
-      })
-      return
-    }
-
-    const supplierName = suppliers.find((s) => s.id === selectedSupplier)?.name || ''
-
-    const p = addPurchase({
-      supplierId: selectedSupplier,
-      supplierName,
-      items: purchaseItems,
-      total: newPurchaseTotal,
-    })
-
-    installments.forEach((inst, i) => {
-      addPayable({
-        supplierId: selectedSupplier,
-        supplierName,
-        description: `Parcela ${i + 1}/${installments.length} - Compra #${p.id}`,
-        amount: inst.amount,
-        dueDate: new Date(inst.dueDate).toISOString(),
-        purchaseId: p.id,
-      })
-    })
-
-    setIsNewPurchaseOpen(false)
-    setPurchaseItems([])
-    setSelectedSupplier('none')
-    setInstallments([])
-  }
-
   const printOrder = () => {
     document.body.classList.add('printing-order')
     window.print()
@@ -547,12 +436,9 @@ export default function Purchases() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Gestão de Compras</h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Planeje reposições, gere pedidos e lance novas entradas de mercadoria.
+            Planeje reposições, cotações e gere novos pedidos aos fornecedores.
           </p>
         </div>
-        <Button onClick={() => setIsNewPurchaseOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Nova Entrada de Mercadoria
-        </Button>
       </div>
 
       <Tabs defaultValue="planejamento" className="space-y-6">
@@ -1269,299 +1155,6 @@ export default function Purchases() {
             <Button className="bg-emerald-600 hover:bg-emerald-700" onClick={sendOrderWhatsapp}>
               <MessageCircle className="w-4 h-4 mr-2" /> Enviar
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isNewPurchaseOpen} onOpenChange={setIsNewPurchaseOpen}>
-        <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="p-6 border-b shrink-0 bg-muted/10">
-            <DialogTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5" /> Registrar Entrada de Mercadoria
-            </DialogTitle>
-            <DialogDescription>
-              Lance os produtos no estoque e gere as obrigações financeiras para o contas a pagar.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex-1 overflow-auto flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x">
-            <div className="flex-1 p-6 space-y-6 bg-card">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Filtrar Fornecedores por Categoria</Label>
-                  <Select value={filterCategory} onValueChange={setFilterCategory}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Todas as categorias" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
-                      {allCategories.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Fornecedor</Label>
-                  <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o Fornecedor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Selecione...</SelectItem>
-                      {filteredSuppliersForEntry.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <Label>Adicionar Produtos à Nota</Label>
-                <Select onValueChange={addPurchaseItem} value="">
-                  <SelectTrigger>
-                    <SelectValue placeholder="Buscar produto..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name} - Estoque atual: {p.stock}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <div className="border rounded-md mt-2">
-                  <Table>
-                    <TableHeader className="bg-muted/30">
-                      <TableRow>
-                        <TableHead>Produto</TableHead>
-                        <TableHead className="w-[100px] text-center">Qtd.</TableHead>
-                        <TableHead className="w-[120px] text-right">Custo Un.</TableHead>
-                        <TableHead className="w-[100px] text-right">Total</TableHead>
-                        <TableHead className="w-10"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {purchaseItems.map((item) => (
-                        <TableRow key={item.product.id}>
-                          <TableCell className="py-2">
-                            <span className="text-sm font-medium">{item.product.name}</span>
-                          </TableCell>
-                          <TableCell className="py-2">
-                            <Input
-                              type="number"
-                              min="1"
-                              className="h-8 w-full text-center px-1"
-                              value={item.quantity}
-                              onChange={(e) =>
-                                updatePurchaseItem(
-                                  item.product.id,
-                                  'quantity',
-                                  Number(e.target.value),
-                                )
-                              }
-                            />
-                          </TableCell>
-                          <TableCell className="py-2">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              className="h-8 w-full text-right px-1"
-                              value={item.costPrice}
-                              onChange={(e) =>
-                                updatePurchaseItem(
-                                  item.product.id,
-                                  'costPrice',
-                                  Number(e.target.value),
-                                )
-                              }
-                            />
-                          </TableCell>
-                          <TableCell className="py-2 text-right font-medium text-sm">
-                            {formatCurrency(item.quantity * item.costPrice)}
-                          </TableCell>
-                          <TableCell className="py-2 text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive"
-                              onClick={() =>
-                                setPurchaseItems((c) =>
-                                  c.filter((x) => x.product.id !== item.product.id),
-                                )
-                              }
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {purchaseItems.length === 0 && (
-                        <TableRow>
-                          <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
-                            Nenhum produto adicionado.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            </div>
-
-            <div className="w-full lg:w-[350px] p-6 bg-muted/10 flex flex-col gap-6">
-              <div>
-                <Label className="text-base font-semibold text-primary">
-                  Detalhes Financeiros (Obrigatório)
-                </Label>
-                <p className="text-xs text-muted-foreground mt-1 mb-4 leading-tight">
-                  Toda entrada de estoque gera uma obrigação no Contas a Pagar. Defina os
-                  vencimentos abaixo.
-                </p>
-
-                <div className="flex justify-between items-center bg-white p-3 rounded-lg border mb-4">
-                  <span className="font-semibold text-sm">Total da Compra</span>
-                  <span className="text-xl font-bold text-primary">
-                    {formatCurrency(newPurchaseTotal)}
-                  </span>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Select
-                      defaultValue="1"
-                      onValueChange={(v) => handleGenerateInstallments(Number(v))}
-                    >
-                      <SelectTrigger className="flex-1 bg-white">
-                        <SelectValue placeholder="Dividir em..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
-                          <SelectItem key={n} value={n.toString()}>
-                            {n}x parcelas
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2 mt-4 max-h-[250px] overflow-y-auto pr-1">
-                    {installments.map((inst, idx) => (
-                      <div
-                        key={idx}
-                        className="flex gap-2 items-center bg-white p-2 rounded border"
-                      >
-                        <div className="text-xs font-medium w-4 shrink-0 text-muted-foreground">
-                          {idx + 1}
-                        </div>
-                        <Input
-                          type="date"
-                          className="h-8 px-2 flex-1 text-sm"
-                          value={inst.dueDate}
-                          onChange={(e) => {
-                            const newInst = [...installments]
-                            newInst[idx].dueDate = e.target.value
-                            setInstallments(newInst)
-                          }}
-                        />
-                        <Input
-                          type="number"
-                          step="0.01"
-                          className="h-8 w-24 text-right px-2 text-sm"
-                          value={inst.amount}
-                          onChange={(e) => {
-                            const newInst = [...installments]
-                            newInst[idx].amount = Number(e.target.value)
-                            setInstallments(newInst)
-                          }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  {installments.length > 0 &&
-                    Math.abs(
-                      newPurchaseTotal - installments.reduce((acc, curr) => acc + curr.amount, 0),
-                    ) > 0.01 && (
-                      <Alert variant="destructive" className="py-2 px-3">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle className="text-xs font-bold mb-0">Divergência</AlertTitle>
-                        <AlertDescription className="text-[10px]">
-                          A soma das parcelas (
-                          {formatCurrency(installments.reduce((acc, curr) => acc + curr.amount, 0))}
-                          ) difere do total.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter className="p-4 border-t bg-background shrink-0">
-            <Button variant="outline" onClick={() => setIsNewPurchaseOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSavePurchase} className="bg-primary hover:bg-primary/90">
-              Confirmar Entrada e Gerar Contas
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Calc Modal */}
-      <Dialog open={isCalcOpen} onOpenChange={setIsCalcOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Calculadora de Preço de Venda</DialogTitle>
-            <DialogDescription>
-              Defina a margem desejada para calcular o preço sugerido com base no último custo de
-              reposição.
-            </DialogDescription>
-          </DialogHeader>
-          {calcProduct && (
-            <div className="space-y-4 py-4">
-              <div className="flex flex-col gap-1 border-b pb-3">
-                <span className="text-sm text-muted-foreground">Produto</span>
-                <span className="font-medium">{calcProduct.name}</span>
-              </div>
-              <div className="flex flex-col gap-1 border-b pb-3">
-                <span className="text-sm text-muted-foreground">Custo de Reposição (R$)</span>
-                <span className="font-medium">{formatCurrency(calcProduct.costPrice)}</span>
-              </div>
-              <div className="space-y-2">
-                <Label>Margem de Lucro Desejada (%)</Label>
-                <Input
-                  type="number"
-                  value={calcMargin}
-                  onChange={(e) => setCalcMargin(Number(e.target.value))}
-                  min="0"
-                  max="99"
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  Fórmula: Preço Sugerido = Custo / (1 - Margem/100)
-                </p>
-              </div>
-              <div className="flex justify-between items-center p-4 bg-primary/10 border border-primary/20 rounded-lg mt-4">
-                <span className="font-semibold text-primary">Preço Sugerido</span>
-                <span className="text-xl font-bold text-primary">
-                  {formatCurrency(suggestedPrice)}
-                </span>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCalcOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={applySuggestedPrice}>Aplicar Novo Preço</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

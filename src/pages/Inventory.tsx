@@ -54,6 +54,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
 import { PrintInventoryModal } from '@/components/PrintInventoryModal'
+import { NewPurchaseModal } from '@/components/NewPurchaseModal'
 
 export default function Inventory() {
   const { products, stockMovements, addManualStockAdjustment, purchaseOrders, purchases } =
@@ -61,6 +62,7 @@ export default function Inventory() {
   const [searchTerm, setSearchTerm] = useState('')
   const [isScannerOpen, setIsScannerOpen] = useState(false)
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false)
+  const [isNewPurchaseOpen, setIsNewPurchaseOpen] = useState(false)
 
   const [selectedProductHistory, setSelectedProductHistory] = useState<Product | null>(null)
   const [isAdjustmentOpen, setIsAdjustmentOpen] = useState(false)
@@ -143,13 +145,18 @@ export default function Inventory() {
             Monitore níveis de inventário e realize ajustes manuais (Kardex).
           </p>
         </div>
-        <Button
-          onClick={() => setIsPrintModalOpen(true)}
-          variant="outline"
-          className="bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50 shadow-sm w-full sm:w-auto"
-        >
-          <Printer className="h-4 w-4 mr-2" /> Imprimir Inventário
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button onClick={() => setIsNewPurchaseOpen(true)} className="w-full sm:w-auto">
+            <Plus className="mr-2 h-4 w-4" /> Nova Entrada de Mercadoria
+          </Button>
+          <Button
+            onClick={() => setIsPrintModalOpen(true)}
+            variant="outline"
+            className="bg-white text-indigo-600 border-indigo-200 hover:bg-indigo-50 shadow-sm w-full sm:w-auto"
+          >
+            <Printer className="h-4 w-4 mr-2" /> Imprimir Inventário
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -538,6 +545,8 @@ export default function Inventory() {
         onOpenChange={setIsPrintModalOpen}
         products={products}
       />
+
+      <NewPurchaseModal open={isNewPurchaseOpen} onOpenChange={setIsNewPurchaseOpen} />
     </div>
   )
 }
