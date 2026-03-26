@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAppContext, Sale } from '@/context/AppContext'
 import { formatCurrency } from '@/lib/utils'
-import { Search, CalendarDays, Printer } from 'lucide-react'
+import { Search, CalendarDays, Printer, MoreHorizontal, Copy, Ban } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,16 +16,41 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 export default function SalesSearch() {
-  const { sales } = useAppContext()
+  const navigate = useNavigate()
+  const { sales, cancelSale } = useAppContext()
+  const [orderNumber, setOrderNumber] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [filteredSales, setFilteredSales] = useState<Sale[]>([])
   const [hasSearched, setHasSearched] = useState(false)
+  const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null)
 
   const handleSearch = () => {
     let filtered = sales
+
+    if (orderNumber.trim()) {
+      filtered = filtered.filter((s) =>
+        s.id.toLowerCase().includes(orderNumber.toLowerCase().trim()),
+      )
+    }
 
     if (dateFrom) {
       const from = new Date(dateFrom + 'T00:00:00')
@@ -42,6 +68,20 @@ export default function SalesSearch() {
     setHasSearched(true)
   }
 
+  const handleClone = (sale: Sale) => {
+    navigate('/vendas', { state: { cloneSale: sale } })
+  }
+
+  const handleCancelConfirm = () => {
+    if (saleToCancel) {
+      cancelSale(saleToCancel.id)
+      setFilteredSales((prev) =>
+        prev.map((s) => (s.id === saleToCancel.id ? { ...s, status: 'Cancelado' } : s)),
+      )
+      setSaleToCancel(null)
+    }
+  }
+
   const totalSalesAmount = useMemo(() => {
     return filteredSales.reduce(
       (acc, sale) => acc + (sale.status !== 'Cancelado' ? sale.total : 0),
@@ -54,43 +94,53 @@ export default function SalesSearch() {
   }
 
   const periodLabel = useMemo(() => {
+    if (orderNumber && !dateFrom && !dateTo) return `Busca: ${orderNumber}`
     if (!dateFrom && !dateTo) return 'Todo o período'
     const from = dateFrom ? new Date(dateFrom + 'T00:00:00').toLocaleDateString('pt-BR') : 'Início'
     const to = dateTo ? new Date(dateTo + 'T23:59:59').toLocaleDateString('pt-BR') : 'Hoje'
     return `${from} a ${to}`
-  }, [dateFrom, dateTo])
+  }, [dateFrom, dateTo, orderNumber])
 
   return (
     <>
       <div className="space-y-6 print:hidden">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Pesquisa de Vendas por Período</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Pesquisa de Vendas</h1>
           <p className="text-muted-foreground">
-            Filtre o histórico de vendas definindo um período específico para análise.
+            Filtre o histórico de vendas definindo um período ou número de pedido específico.
           </p>
         </div>
 
         <Card>
-          <div className="p-4 border-b bg-muted/20 flex flex-col sm:flex-row gap-4 items-end">
-            <div className="space-y-1.5 w-full sm:w-auto flex-1 max-w-[200px]">
+          <div className="p-4 border-b bg-muted/20 flex flex-col lg:flex-row gap-4 items-end">
+            <div className="space-y-1.5 w-full lg:w-auto flex-1 max-w-[200px]">
+              <Label>Número do Pedido</Label>
+              <Input
+                placeholder="Ex: V-1001"
+                value={orderNumber}
+                onChange={(e) => setOrderNumber(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              />
+            </div>
+            <div className="space-y-1.5 w-full lg:w-auto flex-1 max-w-[200px]">
               <Label>Data Início</Label>
               <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             </div>
-            <div className="space-y-1.5 w-full sm:w-auto flex-1 max-w-[200px]">
+            <div className="space-y-1.5 w-full lg:w-auto flex-1 max-w-[200px]">
               <Label>Data Fim</Label>
               <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </div>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <Button onClick={handleSearch} className="flex-1 sm:flex-none">
+            <div className="flex gap-2 w-full lg:w-auto">
+              <Button onClick={handleSearch} className="flex-1 lg:flex-none">
                 <Search className="mr-2 h-4 w-4" /> Pesquisar
               </Button>
               <Button
                 variant="outline"
                 onClick={handlePrint}
                 disabled={!hasSearched || filteredSales.length === 0}
-                className="flex-1 sm:flex-none"
+                className="flex-1 lg:flex-none"
               >
-                <Printer className="mr-2 h-4 w-4" /> Imprimir Relatório
+                <Printer className="mr-2 h-4 w-4" /> Imprimir
               </Button>
             </div>
           </div>
@@ -101,7 +151,7 @@ export default function SalesSearch() {
             <Card className="md:col-span-1 border-primary/20 bg-primary/5">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Resumo do Período
+                  Resumo do Filtro
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -126,7 +176,8 @@ export default function SalesSearch() {
                   <TableHead>Cliente</TableHead>
                   <TableHead>Vendedor</TableHead>
                   <TableHead className="text-right">Valor Total</TableHead>
-                  <TableHead className="text-center pr-6">Status</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                  <TableHead className="text-right pr-6 w-[80px]">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -150,7 +201,7 @@ export default function SalesSearch() {
                         <TableCell className="text-right font-medium">
                           {formatCurrency(sale.total)}
                         </TableCell>
-                        <TableCell className="text-center pr-6">
+                        <TableCell className="text-center">
                           <Badge
                             variant={
                               sale.status === 'Pago'
@@ -164,21 +215,46 @@ export default function SalesSearch() {
                             {sale.status}
                           </Badge>
                         </TableCell>
+                        <TableCell className="text-right pr-6">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Ações</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => handleClone(sale)}>
+                                <Copy className="mr-2 h-4 w-4" />
+                                Clonar Pedido
+                              </DropdownMenuItem>
+                              {sale.status !== 'Cancelado' && (
+                                <DropdownMenuItem
+                                  onClick={() => setSaleToCancel(sale)}
+                                  className="text-destructive focus:text-destructive focus:bg-destructive/10"
+                                >
+                                  <Ban className="mr-2 h-4 w-4" />
+                                  Cancelar Pedido
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                         <CalendarDays className="h-8 w-8 mx-auto mb-3 opacity-20" />
-                        Nenhuma venda encontrada para o período selecionado.
+                        Nenhuma venda encontrada para os filtros selecionados.
                       </TableCell>
                     </TableRow>
                   )
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                       <Search className="h-8 w-8 mx-auto mb-3 opacity-20" />
-                      Defina o período e clique em "Pesquisar" para visualizar as vendas.
+                      Defina os filtros e clique em "Pesquisar" para visualizar as vendas.
                     </TableCell>
                   </TableRow>
                 )}
@@ -188,16 +264,40 @@ export default function SalesSearch() {
         </Card>
       </div>
 
+      <AlertDialog open={!!saleToCancel} onOpenChange={(open) => !open && setSaleToCancel(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive flex items-center gap-2">
+              <Ban className="h-5 w-5" /> Confirmar Cancelamento
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Você está prestes a cancelar o pedido <strong>{saleToCancel?.id}</strong>. Isso
+              atualizará o status da venda e poderá afetar o estoque e financeiro do cliente. Tem
+              certeza que deseja prosseguir?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelConfirm}
+              className="bg-destructive hover:bg-destructive/90 text-white"
+            >
+              Confirmar Cancelamento
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Print View */}
       <div className="hidden print:block text-black bg-white w-full">
         <div className="mb-6 border-b-2 border-black pb-4 flex justify-between items-end">
           <div>
             <h1 className="text-2xl font-bold uppercase tracking-tight">Extrato de Vendas</h1>
-            <p className="text-sm mt-1 text-gray-600">Período: {periodLabel}</p>
+            <p className="text-sm mt-1 text-gray-600">Período/Filtro: {periodLabel}</p>
           </div>
           <div className="text-right">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">
-              Resumo do Período
+              Resumo do Filtro
             </p>
             <p className="text-xl font-bold">{formatCurrency(totalSalesAmount)}</p>
           </div>
@@ -206,8 +306,8 @@ export default function SalesSearch() {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="border-b-2 border-black">
-              <th className="text-left py-2 font-bold w-1/4">Data / Hora</th>
-              <th className="text-left py-2 font-bold w-1/2">Descrição / Cliente</th>
+              <th className="text-left py-2 font-bold w-1/4">Data / ID</th>
+              <th className="text-left py-2 font-bold w-1/2">Cliente</th>
               <th className="text-right py-2 font-bold w-1/4">Valor Total</th>
             </tr>
           </thead>
@@ -222,6 +322,7 @@ export default function SalesSearch() {
                     dateStyle: 'short',
                     timeStyle: 'short',
                   })}
+                  <div className="text-xs text-gray-500">{sale.id}</div>
                 </td>
                 <td className="py-2">
                   <span className="font-medium">{sale.customer || 'Consumidor Final'}</span>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   useAppContext,
   Product,
@@ -65,6 +66,8 @@ import { CustomerCombobox } from '@/components/CustomerCombobox'
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
 
 export default function Sales() {
+  const location = useLocation()
+
   const {
     products,
     sales,
@@ -118,6 +121,45 @@ export default function Sales() {
       setPixConfirmed(false)
     }
   }, [isCheckoutOpen])
+
+  useEffect(() => {
+    if (location.state && location.state.cloneSale) {
+      const saleToClone = location.state.cloneSale as Sale
+      setCart(saleToClone.items)
+
+      if (saleToClone.discount) {
+        setDiscountType('fixed')
+        setDiscountValue(saleToClone.discount.toString())
+      } else {
+        setDiscountType('percent')
+        setDiscountValue('')
+      }
+
+      if (saleToClone.customerId) {
+        setSelectedCustomerId(saleToClone.customerId)
+      } else {
+        setSelectedCustomerId('none')
+      }
+
+      if (saleToClone.sellerId) {
+        setSelectedSellerId(saleToClone.sellerId)
+      } else {
+        setSelectedSellerId('none')
+      }
+
+      setPaymentMethod(saleToClone.paymentMethod || 'Dinheiro')
+      setUseCashback(false)
+      setActiveTab('pdv')
+
+      toast({
+        title: 'Pedido Carregado',
+        description: `O pedido ${saleToClone.id} foi clonado para manutenção e re-faturamento.`,
+      })
+
+      // Clear the location state to prevent re-cloning on refresh
+      window.history.replaceState({}, document.title)
+    }
+  }, [location.state])
 
   const filteredProducts = products.filter(
     (p) =>
