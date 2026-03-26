@@ -70,6 +70,7 @@ export interface SaleHistoryLog {
   timestamp: string
   action: string
   userName: string
+  paymentMethod?: string
 }
 
 export interface Sale {
@@ -81,6 +82,7 @@ export interface Sale {
   total: number
   discount?: number
   status: 'Pendente' | 'Pago' | 'Cancelado'
+  pendingReason?: string
   cashbackEarned?: number
   cashbackUsed?: number
   paymentMethod?: PaymentMethod
@@ -221,9 +223,9 @@ interface AppContextType {
   setSales: (sales: Sale[]) => void
   addSale: (sale: Omit<Sale, 'id' | 'date' | 'status' | 'history'>) => Sale
   updateSale: (id: string, saleData: Partial<Sale>) => void
-  cancelSale: (id: string, reason: string) => void
+  cancelSale: (id: string, reason: string, returnToStock?: boolean) => void
   markSaleAsPaid: (id: string) => void
-  logSaleAction: (id: string, action: string) => void
+  logSaleAction: (id: string, action: string, paymentMethod?: string) => void
   preSales: PreSale[]
   addPreSale: (preSale: Omit<PreSale, 'id' | 'date'>) => void
   updatePreSale: (id: string, preSale: Omit<PreSale, 'id' | 'date'>) => void
@@ -413,6 +415,14 @@ const initialSales: Sale[] = [
     paymentMethod: 'PIX',
     sellerId: '3',
     sellerName: 'Pedro Vendedor',
+    history: [
+      {
+        timestamp: new Date().toISOString(),
+        action: 'Criação do Pedido',
+        userName: 'Pedro Vendedor',
+        paymentMethod: 'PIX',
+      },
+    ],
   },
   {
     id: 'V-1002',
@@ -425,12 +435,21 @@ const initialSales: Sale[] = [
     ],
     total: 6890.0,
     status: 'Pendente',
+    pendingReason: 'Aguardando Aprovação Financeira',
     paymentMethod: 'Venda a Prazo',
     dueDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     sellerId: '3',
     sellerName: 'Pedro Vendedor',
     whatsappReminder: true,
     whatsappReminderDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
+    history: [
+      {
+        timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        action: 'Criação do Pedido (Aguardando Aprovação Financeira)',
+        userName: 'Pedro Vendedor',
+        paymentMethod: 'Venda a Prazo',
+      },
+    ],
   },
   {
     id: 'V-1003',
@@ -446,6 +465,14 @@ const initialSales: Sale[] = [
     paymentMethod: 'Cartão de Crédito',
     sellerId: '2',
     sellerName: 'Ana Gerente',
+    history: [
+      {
+        timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+        action: 'Criação do Pedido',
+        userName: 'Ana Gerente',
+        paymentMethod: 'Cartão de Crédito',
+      },
+    ],
   },
 ]
 
@@ -883,7 +910,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  const logSaleAction = (id: string, action: string) => {
+  const logSaleAction = (id: string, action: string, paymentMethod?: string) => {
     setSales((prev) =>
       prev.map((s) => {
         if (s.id === id) {
@@ -895,6 +922,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 timestamp: new Date().toISOString(),
                 action,
                 userName: currentUser.name,
+                paymentMethod: paymentMethod || s.paymentMethod,
               },
             ],
           }
@@ -911,12 +939,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       id: `V-${1000 + sales.length + 1}`,
       date: new Date().toISOString(),
       status: isCredit ? 'Pendente' : 'Pago',
+      pendingReason: isCredit ? 'Aguardando Pagamento' : undefined,
       dueDate: isCredit ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : undefined,
       history: [
         {
           timestamp: new Date().toISOString(),
-          action: 'Criação do Pedido',
+          action: `Criação do Pedido${isCredit ? ' (Aguardando Pagamento)' : ''}`,
           userName: newSale.sellerName || currentUser.name,
+          paymentMethod: newSale.paymentMethod,
         },
       ],
     }
@@ -1049,34 +1079,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSales((prev) => prev.map((s) => (s.id === id ? { ...s, ...saleData } : s)))
   }
 
-  const cancelSale = (id: string, reason: string) => {
+  const cancelSale = (id: string, reason: string, returnToStock: boolean = true) => {
     const sale = sales.find((s) => s.id === id)
     if (!sale || sale.status === 'Cancelado') return
 
     const newMovements: StockMovement[] = []
     const updatedProducts = [...products]
 
-    sale.items.forEach((item) => {
-      const productIndex = updatedProducts.findIndex((p) => p.id === item.product.id)
-      if (productIndex !== -1) {
-        const product = updatedProducts[productIndex]
-        const newStock = product.stock + item.quantity
-        newMovements.push({
-          id: `MOV-${Date.now()}-${product.id}-CANC-${Math.floor(Math.random() * 1000)}`,
-          productId: product.id,
-          date: new Date().toISOString(),
-          type: 'Entrada',
-          quantity: item.quantity,
-          origin: `Estorno Venda #${sale.id}`,
-          balanceAfter: newStock,
-        })
-        updatedProducts[productIndex] = { ...product, stock: newStock }
-      }
-    })
+    if (returnToStock) {
+      sale.items.forEach((item) => {
+        const productIndex = updatedProducts.findIndex((p) => p.id === item.product.id)
+        if (productIndex !== -1) {
+          const product = updatedProducts[productIndex]
+          const newStock = product.stock + item.quantity
+          newMovements.push({
+            id: `MOV-${Date.now()}-${product.id}-CANC-${Math.floor(Math.random() * 1000)}`,
+            productId: product.id,
+            date: new Date().toISOString(),
+            type: 'Entrada',
+            quantity: item.quantity,
+            origin: `Estorno Venda #${sale.id}`,
+            balanceAfter: newStock,
+          })
+          updatedProducts[productIndex] = { ...product, stock: newStock }
+        }
+      })
 
-    setProducts(updatedProducts)
-    if (newMovements.length > 0) {
-      setStockMovements((prev) => [...newMovements, ...prev])
+      setProducts(updatedProducts)
+      if (newMovements.length > 0) {
+        setStockMovements((prev) => [...newMovements, ...prev])
+      }
     }
 
     setSales((prev) =>
@@ -1089,8 +1121,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
               ...(s.history || []),
               {
                 timestamp: new Date().toISOString(),
-                action: `Cancelamento - Motivo: ${reason}`,
+                action: `Cancelamento - Motivo: ${reason} ${returnToStock ? '(Com retorno de estoque)' : '(Sem retorno de estoque)'}`,
                 userName: currentUser.name,
+                paymentMethod: s.paymentMethod,
               },
             ],
           }
@@ -1117,7 +1150,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     toast({
       title: 'Venda Cancelada',
-      description: 'Estoque e saldo do cliente restaurados com sucesso.',
+      description: `Status atualizado com sucesso.${returnToStock ? ' Estoque e saldo do cliente restaurados.' : ''}`,
     })
   }
 
@@ -1143,7 +1176,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })
     } else if (type === 'sale') {
       setSales((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, status: 'Pago', paymentMethod: method } : s)),
+        prev.map((s) => {
+          if (s.id === id) {
+            return {
+              ...s,
+              status: 'Pago',
+              paymentMethod: method,
+              history: [
+                ...(s.history || []),
+                {
+                  timestamp: new Date().toISOString(),
+                  action: 'Confirmação de Pagamento',
+                  userName: 'Sistema (Gateway)',
+                  paymentMethod: method,
+                },
+              ],
+            }
+          }
+          return s
+        }),
       )
     }
   }

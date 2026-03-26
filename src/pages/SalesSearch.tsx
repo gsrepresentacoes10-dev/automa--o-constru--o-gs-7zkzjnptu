@@ -44,6 +44,7 @@ import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Switch } from '@/components/ui/switch'
 
 export default function SalesSearch() {
   const navigate = useNavigate()
@@ -56,6 +57,7 @@ export default function SalesSearch() {
   const [hasSearched, setHasSearched] = useState(false)
   const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null)
   const [cancelReason, setCancelReason] = useState<string>('')
+  const [returnToStock, setReturnToStock] = useState<boolean>(true)
   const [detailsSale, setDetailsSale] = useState<Sale | null>(null)
 
   const handleSearch = () => {
@@ -93,7 +95,7 @@ export default function SalesSearch() {
     if (hasSearched) {
       handleSearch()
     }
-  }, [statusFilter])
+  }, [statusFilter, sales])
 
   const handleClone = (sale: Sale) => {
     logSaleAction(sale.id, 'Clonagem para re-faturamento')
@@ -102,28 +104,10 @@ export default function SalesSearch() {
 
   const handleCancelConfirm = () => {
     if (saleToCancel && cancelReason) {
-      cancelSale(saleToCancel.id, cancelReason)
-      setFilteredSales((prev) =>
-        prev.map((s) => {
-          if (s.id === saleToCancel.id) {
-            return {
-              ...s,
-              status: 'Cancelado',
-              history: [
-                ...(s.history || []),
-                {
-                  timestamp: new Date().toISOString(),
-                  action: `Cancelamento - Motivo: ${cancelReason}`,
-                  userName: currentUser.name,
-                },
-              ],
-            }
-          }
-          return s
-        }),
-      )
+      cancelSale(saleToCancel.id, cancelReason, returnToStock)
       setSaleToCancel(null)
       setCancelReason('')
+      setReturnToStock(true)
     }
   }
 
@@ -158,6 +142,13 @@ export default function SalesSearch() {
     const to = dateTo ? new Date(dateTo + 'T23:59:59').toLocaleDateString('pt-BR') : 'Hoje'
     return `${from} a ${to}`
   }, [dateFrom, dateTo, orderNumber])
+
+  const hasPhysicalProducts = useMemo(() => {
+    if (!saleToCancel) return false
+    return saleToCancel.items.some(
+      (item) => !item.product.category.toLowerCase().includes('serviço'),
+    )
+  }, [saleToCancel])
 
   return (
     <>
@@ -319,18 +310,25 @@ export default function SalesSearch() {
                           {formatCurrency(sale.total)}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge
-                            variant={
-                              sale.status === 'Pago'
-                                ? 'default'
-                                : sale.status === 'Cancelado'
-                                  ? 'destructive'
-                                  : 'secondary'
-                            }
-                            className={sale.status === 'Pago' ? 'bg-emerald-500' : ''}
-                          >
-                            {sale.status}
-                          </Badge>
+                          <div className="flex flex-col items-center justify-center gap-0.5">
+                            <Badge
+                              variant={
+                                sale.status === 'Pago'
+                                  ? 'default'
+                                  : sale.status === 'Cancelado'
+                                    ? 'destructive'
+                                    : 'secondary'
+                              }
+                              className={sale.status === 'Pago' ? 'bg-emerald-500' : ''}
+                            >
+                              {sale.status}
+                            </Badge>
+                            {sale.status === 'Pendente' && (
+                              <span className="text-[10px] text-muted-foreground max-w-[120px] truncate">
+                                {sale.pendingReason || 'Pagamento'}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right pr-6">
                           <DropdownMenu>
@@ -350,7 +348,10 @@ export default function SalesSearch() {
                               </DropdownMenuItem>
                               {sale.status !== 'Cancelado' && (
                                 <DropdownMenuItem
-                                  onClick={() => setSaleToCancel(sale)}
+                                  onClick={() => {
+                                    setSaleToCancel(sale)
+                                    setReturnToStock(true)
+                                  }}
                                   className="text-destructive focus:text-destructive focus:bg-destructive/10"
                                 >
                                   <Ban className="mr-2 h-4 w-4" />
@@ -390,6 +391,7 @@ export default function SalesSearch() {
           if (!open) {
             setSaleToCancel(null)
             setCancelReason('')
+            setReturnToStock(true)
           }
         }}
       >
@@ -405,20 +407,42 @@ export default function SalesSearch() {
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <div className="py-4 space-y-3 border-y my-2">
-            <Label htmlFor="cancelReason" className="flex items-center gap-1">
-              Motivo do Cancelamento <span className="text-destructive">*</span>
-            </Label>
-            <Select value={cancelReason} onValueChange={setCancelReason}>
-              <SelectTrigger id="cancelReason">
-                <SelectValue placeholder="Selecione um motivo..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Manutenção">Manutenção</SelectItem>
-                <SelectItem value="Desistência">Desistência</SelectItem>
-                <SelectItem value="Venda Errada">Venda Errada</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="py-4 space-y-4 border-y my-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="cancelReason" className="flex items-center gap-1">
+                Motivo do Cancelamento <span className="text-destructive">*</span>
+              </Label>
+              <Select value={cancelReason} onValueChange={setCancelReason}>
+                <SelectTrigger id="cancelReason">
+                  <SelectValue placeholder="Selecione um motivo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Manutenção">Manutenção</SelectItem>
+                  <SelectItem value="Desistência">Desistência</SelectItem>
+                  <SelectItem value="Venda Errada">Venda Errada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {hasPhysicalProducts && (
+              <div className="bg-muted/40 p-3 rounded-md border space-y-2">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="returnStock"
+                    checked={returnToStock}
+                    onCheckedChange={setReturnToStock}
+                  />
+                  <Label htmlFor="returnStock" className="cursor-pointer font-medium">
+                    Reentrada no Estoque
+                  </Label>
+                </div>
+                <p className="text-xs text-muted-foreground pl-11">
+                  {returnToStock
+                    ? 'Os itens deste pedido voltarão para o inventário físico automaticamente.'
+                    : 'Os itens NÃO retornarão para o inventário. O estoque continuará deduzido.'}
+                </p>
+              </div>
+            )}
           </div>
 
           <AlertDialogFooter>
@@ -460,11 +484,24 @@ export default function SalesSearch() {
                     <span className="text-muted-foreground">Data:</span>
                     <span>{new Date(detailsSale.date).toLocaleString('pt-BR')}</span>
                   </div>
+                  <div className="flex justify-between border-b pb-1 items-start">
+                    <span className="text-muted-foreground mt-0.5">Status:</span>
+                    <div className="text-right">
+                      <Badge
+                        variant={detailsSale.status === 'Cancelado' ? 'destructive' : 'default'}
+                      >
+                        {detailsSale.status}
+                      </Badge>
+                      {detailsSale.status === 'Pendente' && (
+                        <div className="text-xs text-muted-foreground mt-0.5 max-w-[200px]">
+                          {detailsSale.pendingReason || 'Pagamento'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <div className="flex justify-between border-b pb-1">
-                    <span className="text-muted-foreground">Status:</span>
-                    <Badge variant={detailsSale.status === 'Cancelado' ? 'destructive' : 'default'}>
-                      {detailsSale.status}
-                    </Badge>
+                    <span className="text-muted-foreground">Forma de Pagamento:</span>
+                    <span className="font-medium">{detailsSale.paymentMethod || '-'}</span>
                   </div>
                   <div className="flex justify-between border-b pb-1">
                     <span className="text-muted-foreground">Vendedor:</span>
@@ -497,13 +534,20 @@ export default function SalesSearch() {
                     {detailsSale.history.map((log, i) => (
                       <div
                         key={i}
-                        className="flex justify-between items-center text-sm border-b pb-2"
+                        className="flex justify-between items-start text-sm border-b pb-3"
                       >
                         <div>
                           <p className="font-medium text-primary">{log.action}</p>
-                          <p className="text-xs text-muted-foreground">Por: {log.userName}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Por: {log.userName}
+                          </p>
+                          {log.paymentMethod && (
+                            <p className="text-[11px] text-muted-foreground mt-1 font-medium bg-muted/50 inline-block px-1.5 py-0.5 rounded">
+                              Pagamento: {log.paymentMethod}
+                            </p>
+                          )}
                         </div>
-                        <div className="text-xs text-muted-foreground">
+                        <div className="text-xs text-muted-foreground whitespace-nowrap ml-4 mt-0.5">
                           {new Date(log.timestamp).toLocaleString('pt-BR')}
                         </div>
                       </div>
@@ -560,6 +604,11 @@ export default function SalesSearch() {
                   <span className="font-medium">{sale.customer || 'Consumidor Final'}</span>
                   {sale.status === 'Cancelado' && (
                     <span className="ml-2 text-xs italic">(Cancelada)</span>
+                  )}
+                  {sale.status === 'Pendente' && (
+                    <span className="ml-2 text-xs italic text-gray-500">
+                      (Pendente: {sale.pendingReason || 'Pagamento'})
+                    </span>
                   )}
                 </td>
                 <td className="py-2 text-right tabular-nums">{formatCurrency(sale.total)}</td>
