@@ -221,7 +221,7 @@ interface AppContextType {
   setSales: (sales: Sale[]) => void
   addSale: (sale: Omit<Sale, 'id' | 'date' | 'status' | 'history'>) => Sale
   updateSale: (id: string, saleData: Partial<Sale>) => void
-  cancelSale: (id: string) => void
+  cancelSale: (id: string, reason: string) => void
   markSaleAsPaid: (id: string) => void
   logSaleAction: (id: string, action: string) => void
   preSales: PreSale[]
@@ -1049,7 +1049,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSales((prev) => prev.map((s) => (s.id === id ? { ...s, ...saleData } : s)))
   }
 
-  const cancelSale = (id: string) => {
+  const cancelSale = (id: string, reason: string) => {
     const sale = sales.find((s) => s.id === id)
     if (!sale || sale.status === 'Cancelado') return
 
@@ -1089,7 +1089,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               ...(s.history || []),
               {
                 timestamp: new Date().toISOString(),
-                action: 'Cancelamento',
+                action: `Cancelamento - Motivo: ${reason}`,
                 userName: currentUser.name,
               },
             ],

@@ -47,7 +47,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 
 export default function SalesSearch() {
   const navigate = useNavigate()
-  const { sales, cancelSale, logSaleAction } = useAppContext()
+  const { sales, cancelSale, logSaleAction, currentUser } = useAppContext()
   const [orderNumber, setOrderNumber] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -55,6 +55,7 @@ export default function SalesSearch() {
   const [filteredSales, setFilteredSales] = useState<Sale[]>([])
   const [hasSearched, setHasSearched] = useState(false)
   const [saleToCancel, setSaleToCancel] = useState<Sale | null>(null)
+  const [cancelReason, setCancelReason] = useState<string>('')
   const [detailsSale, setDetailsSale] = useState<Sale | null>(null)
 
   const handleSearch = () => {
@@ -100,12 +101,29 @@ export default function SalesSearch() {
   }
 
   const handleCancelConfirm = () => {
-    if (saleToCancel) {
-      cancelSale(saleToCancel.id)
+    if (saleToCancel && cancelReason) {
+      cancelSale(saleToCancel.id, cancelReason)
       setFilteredSales((prev) =>
-        prev.map((s) => (s.id === saleToCancel.id ? { ...s, status: 'Cancelado' } : s)),
+        prev.map((s) => {
+          if (s.id === saleToCancel.id) {
+            return {
+              ...s,
+              status: 'Cancelado',
+              history: [
+                ...(s.history || []),
+                {
+                  timestamp: new Date().toISOString(),
+                  action: `Cancelamento - Motivo: ${cancelReason}`,
+                  userName: currentUser.name,
+                },
+              ],
+            }
+          }
+          return s
+        }),
       )
       setSaleToCancel(null)
+      setCancelReason('')
     }
   }
 
@@ -366,7 +384,15 @@ export default function SalesSearch() {
         </Card>
       </div>
 
-      <AlertDialog open={!!saleToCancel} onOpenChange={(open) => !open && setSaleToCancel(null)}>
+      <AlertDialog
+        open={!!saleToCancel}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSaleToCancel(null)
+            setCancelReason('')
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="text-destructive flex items-center gap-2">
@@ -378,11 +404,32 @@ export default function SalesSearch() {
               certeza que deseja prosseguir?
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          <div className="py-4 space-y-3 border-y my-2">
+            <Label htmlFor="cancelReason" className="flex items-center gap-1">
+              Motivo do Cancelamento <span className="text-destructive">*</span>
+            </Label>
+            <Select value={cancelReason} onValueChange={setCancelReason}>
+              <SelectTrigger id="cancelReason">
+                <SelectValue placeholder="Selecione um motivo..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Manutenção">Manutenção</SelectItem>
+                <SelectItem value="Desistência">Desistência</SelectItem>
+                <SelectItem value="Venda Errada">Venda Errada</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <AlertDialogFooter>
             <AlertDialogCancel>Voltar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={handleCancelConfirm}
-              className="bg-destructive hover:bg-destructive/90 text-white"
+              onClick={(e) => {
+                e.preventDefault()
+                handleCancelConfirm()
+              }}
+              disabled={!cancelReason}
+              className="bg-destructive hover:bg-destructive/90 text-white disabled:opacity-50"
             >
               Confirmar Cancelamento
             </AlertDialogAction>
