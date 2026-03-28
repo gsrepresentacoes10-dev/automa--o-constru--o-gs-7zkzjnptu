@@ -44,14 +44,43 @@ export interface Product {
   id: string
   sku: string
   barcode?: string
+  barcode2?: string
+  barcode3?: string
+  reference?: string
+  scaleReference?: string
   name: string
   brand?: string
   category: string
   unit: string
   price: number
   costPrice: number
+  profitMargin?: number
+  minSalePrice?: number
+  wholesalePrice?: number
+  wholesaleQuantity?: number
+  manageStock?: boolean
   stock: number
   minStock: number
+  expirationAlertDays?: number
+  active?: boolean
+  compound?: boolean
+  withVariations?: boolean
+  comboType?: boolean
+  uniqueType?: boolean
+  posScale?: boolean
+  exportToScale?: boolean
+  hasDimensions?: boolean
+  thickness?: number
+  width?: number
+  height?: number
+  length?: number
+  weight?: number
+  grossWeight?: number
+  forProduction?: boolean
+  storageLocation?: string
+  warrantyPeriod?: number
+  images?: string[]
+  observations?: string[]
   leadTime?: number
   isEssential?: boolean
 }
@@ -353,95 +382,116 @@ const initialProducts: Product[] = [
     sku: 'CIM-001',
     barcode: '7891000000001',
     name: 'Cimento CP II 50kg',
-    brand: 'Votorantim',
-    category: 'Básico',
-    unit: 'sc',
+    brand: 'VOTORANTIM',
+    category: 'MATERIAL EM GROSSO',
+    unit: 'SACO',
     price: 35.9,
     costPrice: 28.0,
+    profitMargin: 28.2,
+    manageStock: true,
     stock: 12,
     minStock: 50,
     leadTime: 3,
     isEssential: true,
+    active: true,
   },
   {
     id: '2',
     sku: 'TIJ-008',
     barcode: '7891000000002',
     name: 'Tijolo Baiano 8 Furos',
-    brand: 'Cerâmica São João',
-    category: 'Básico',
-    unit: 'un',
+    brand: 'OUTROS',
+    category: 'MATERIAL EM GROSSO',
+    unit: 'UN',
     price: 1.15,
     costPrice: 0.8,
+    profitMargin: 43.75,
+    manageStock: true,
     stock: 5200,
     minStock: 1000,
     leadTime: 7,
+    active: true,
   },
   {
     id: '3',
     sku: 'ARG-003',
     barcode: '7891000000003',
     name: 'Argamassa ACIII 20kg',
-    brand: 'Quartzolit',
-    category: 'Básico',
-    unit: 'sc',
+    brand: 'QUARTZOLIT',
+    category: 'ARGAMASSAS E REJUNTES',
+    unit: 'SACO',
     price: 28.5,
     costPrice: 20.0,
+    profitMargin: 42.5,
+    manageStock: true,
     stock: 45,
     minStock: 30,
     isEssential: true,
+    active: true,
   },
   {
     id: '4',
     sku: 'POR-001',
     barcode: '7891000000004',
     name: 'Porcelanato Polido 60x60',
-    brand: 'Portobello',
-    category: 'Pisos',
-    unit: 'm²',
+    brand: 'PORTOBELLO',
+    category: 'MATERIAL EM GROSSO',
+    unit: 'CX',
     price: 59.9,
     costPrice: 40.0,
+    profitMargin: 49.75,
+    manageStock: true,
     stock: 150,
     minStock: 50,
+    active: true,
   },
   {
     id: '5',
     sku: 'TUB-100',
     barcode: '7891000000005',
     name: 'Tubo PVC 100mm',
-    brand: 'Tigre',
-    category: 'Hidráulica',
-    unit: 'br',
+    brand: 'TIGRE',
+    category: 'MATERIAL HIDRAULICO',
+    unit: 'BARRA',
     price: 45.0,
     costPrice: 30.0,
+    profitMargin: 50,
+    manageStock: true,
     stock: 80,
     minStock: 20,
+    active: true,
   },
   {
     id: '6',
     sku: 'CAB-004',
     barcode: '7891000000006',
     name: 'Cabo Flexível 4mm',
-    brand: 'Sil',
-    category: 'Elétrica',
-    unit: 'rl',
+    brand: 'SIL',
+    category: 'MATERIAL ELETRICO',
+    unit: 'ROLOS',
     price: 180.0,
     costPrice: 120.0,
+    profitMargin: 50,
+    manageStock: true,
     stock: 15,
     minStock: 10,
+    active: true,
   },
   {
     id: '7',
     sku: 'TIN-018',
     barcode: '7891000000007',
     name: 'Tinta Acrílica Fosca 18L',
-    brand: 'Suvinil',
-    category: 'Pintura',
-    unit: 'lt',
+    brand: 'SUVINIL',
+    category: 'MATERIAL PARA PINTURA',
+    unit: 'LATA',
     price: 220.0,
     costPrice: 160.0,
+    profitMargin: 37.5,
+    manageStock: true,
     stock: 8,
     minStock: 5,
+    active: true,
   },
 ]
 
