@@ -14,6 +14,22 @@ export interface Seller {
   id: string
   code: string
   name: string
+  currentBalance: number
+  totalCredits: number
+  totalDebits: number
+}
+
+export interface SellerCreditHistory {
+  id: string
+  sellerId: string
+  saleId?: string
+  type: 'credito' | 'debito' | 'manual_add' | 'manual_edit' | 'reset'
+  value: number
+  oldBalance: number
+  newBalance: number
+  reason?: string
+  createdBy: string
+  createdAt: string
 }
 
 export type PaymentMethod =
@@ -208,9 +224,20 @@ interface AppContextType {
   addUser: (user: Omit<User, 'id'>) => void
   deleteUser: (id: string) => void
   sellers: Seller[]
-  addSeller: (seller: Omit<Seller, 'id'>) => void
-  updateSeller: (id: string, seller: Omit<Seller, 'id'>) => void
+  addSeller: (
+    seller: Omit<Seller, 'id' | 'currentBalance' | 'totalCredits' | 'totalDebits'>,
+  ) => void
+  updateSeller: (id: string, seller: Partial<Seller>) => void
   deleteSeller: (id: string) => void
+  sellerCreditHistory: SellerCreditHistory[]
+  adjustSellerBalance: (
+    sellerId: string,
+    amount: number,
+    type: SellerCreditHistory['type'],
+    reason: string,
+    saleId?: string,
+  ) => void
+  setSellerBalance: (sellerId: string, newBalance: number, reason: string) => void
   products: Product[]
   setProducts: (products: Product[]) => void
   addProduct: (product: Omit<Product, 'id'>) => void
@@ -273,8 +300,48 @@ const initialUsers: User[] = [
 ]
 
 const initialSellers: Seller[] = [
-  { id: '1', code: 'V001', name: 'Pedro Vendedor' },
-  { id: '2', code: 'V002', name: 'Ana Gerente' },
+  {
+    id: '1',
+    code: 'V001',
+    name: 'Pedro Vendedor',
+    currentBalance: 150.5,
+    totalCredits: 200,
+    totalDebits: 49.5,
+  },
+  {
+    id: '2',
+    code: 'V002',
+    name: 'Ana Gerente',
+    currentBalance: 0,
+    totalCredits: 0,
+    totalDebits: 0,
+  },
+]
+
+const initialSellerCreditHistory: SellerCreditHistory[] = [
+  {
+    id: 'SCH-1',
+    sellerId: '1',
+    type: 'manual_add',
+    value: 200,
+    oldBalance: 0,
+    newBalance: 200,
+    reason: 'Saldo inicial',
+    createdBy: 'Sistema',
+    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'SCH-2',
+    sellerId: '1',
+    type: 'debito',
+    value: -49.5,
+    oldBalance: 200,
+    newBalance: 150.5,
+    saleId: 'V-1002',
+    reason: 'Desconto em venda',
+    createdBy: 'Pedro Vendedor',
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+  },
 ]
 
 const initialProducts: Product[] = [
@@ -607,6 +674,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role>('Admin')
   const [currentUser, setCurrentUser] = useState<User>(initialUsers[0])
   const [sellers, setSellers] = useState<Seller[]>(initialSellers)
+  const [sellerCreditHistory, setSellerCreditHistory] = useState<SellerCreditHistory[]>(
+    initialSellerCreditHistory,
+  )
   const [products, setProducts] = useState<Product[]>(initialProducts)
   const [stockMovements, setStockMovements] = useState<StockMovement[]>(initialStockMovements)
   const [sales, setSales] = useState<Sale[]>(initialSales)
@@ -656,13 +726,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toast({ title: 'Usuário Removido', description: 'O acesso foi revogado.' })
   }
 
-  const addSeller = (seller: Omit<Seller, 'id'>) => {
-    const newSeller = { ...seller, id: Date.now().toString() }
+  const addSeller = (
+    seller: Omit<Seller, 'id' | 'currentBalance' | 'totalCredits' | 'totalDebits'>,
+  ) => {
+    const newSeller: Seller = {
+      ...seller,
+      id: Date.now().toString(),
+      currentBalance: 0,
+      totalCredits: 0,
+      totalDebits: 0,
+    }
     setSellers([...sellers, newSeller])
     toast({ title: 'Vendedor Cadastrado', description: 'Vendedor adicionado com sucesso.' })
   }
 
-  const updateSeller = (id: string, seller: Omit<Seller, 'id'>) => {
+  const updateSeller = (id: string, seller: Partial<Seller>) => {
     setSellers((prev) => prev.map((s) => (s.id === id ? { ...s, ...seller } : s)))
     toast({ title: 'Vendedor Atualizado', description: 'Vendedor atualizado com sucesso.' })
   }
@@ -670,6 +748,83 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteSeller = (id: string) => {
     setSellers((prev) => prev.filter((s) => s.id !== id))
     toast({ title: 'Vendedor Removido' })
+  }
+
+  const adjustSellerBalance = (
+    sellerId: string,
+    amount: number,
+    type: SellerCreditHistory['type'],
+    reason: string,
+    saleId?: string,
+  ) => {
+    setSellers((prev) => {
+      const seller = prev.find((s) => s.id === sellerId)
+      if (!seller) return prev
+
+      const newBalance = seller.currentBalance + amount
+      const isCredit = amount > 0
+
+      const newHistory: SellerCreditHistory = {
+        id: `SCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        sellerId,
+        saleId,
+        type,
+        value: amount,
+        oldBalance: seller.currentBalance,
+        newBalance,
+        reason,
+        createdBy: currentUser.name,
+        createdAt: new Date().toISOString(),
+      }
+      setSellerCreditHistory((h) => [newHistory, ...h])
+
+      return prev.map((s) =>
+        s.id === sellerId
+          ? {
+              ...s,
+              currentBalance: newBalance,
+              totalCredits: s.totalCredits + (isCredit ? amount : 0),
+              totalDebits: s.totalDebits + (!isCredit ? Math.abs(amount) : 0),
+            }
+          : s,
+      )
+    })
+  }
+
+  const setSellerBalance = (sellerId: string, newBalance: number, reason: string) => {
+    setSellers((prev) => {
+      const seller = prev.find((s) => s.id === sellerId)
+      if (!seller) return prev
+
+      const diff = newBalance - seller.currentBalance
+      if (diff === 0) return prev
+
+      const type = newBalance === 0 && diff < 0 ? 'reset' : 'manual_edit'
+
+      const newHistory: SellerCreditHistory = {
+        id: `SCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        sellerId,
+        type,
+        value: diff,
+        oldBalance: seller.currentBalance,
+        newBalance,
+        reason,
+        createdBy: currentUser.name,
+        createdAt: new Date().toISOString(),
+      }
+      setSellerCreditHistory((h) => [newHistory, ...h])
+
+      return prev.map((s) =>
+        s.id === sellerId
+          ? {
+              ...s,
+              currentBalance: newBalance,
+              totalCredits: s.totalCredits + (diff > 0 ? diff : 0),
+              totalDebits: s.totalDebits + (diff < 0 ? Math.abs(diff) : 0),
+            }
+          : s,
+      )
+    })
   }
 
   const addProduct = (newProduct: Omit<Product, 'id'>) => {
@@ -1416,6 +1571,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         addSeller,
         updateSeller,
         deleteSeller,
+        sellerCreditHistory,
+        adjustSellerBalance,
+        setSellerBalance,
         products,
         setProducts,
         addProduct,
