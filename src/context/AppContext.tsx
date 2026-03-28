@@ -17,6 +17,7 @@ export interface Seller {
   currentBalance: number
   totalCredits: number
   totalDebits: number
+  maxDiscountLimit?: number
 }
 
 export interface SellerCreditHistory {
@@ -307,6 +308,7 @@ const initialSellers: Seller[] = [
     currentBalance: 150.5,
     totalCredits: 200,
     totalDebits: 49.5,
+    maxDiscountLimit: 1500,
   },
   {
     id: '2',
@@ -315,6 +317,7 @@ const initialSellers: Seller[] = [
     currentBalance: 0,
     totalCredits: 0,
     totalDebits: 0,
+    maxDiscountLimit: 5000,
   },
 ]
 

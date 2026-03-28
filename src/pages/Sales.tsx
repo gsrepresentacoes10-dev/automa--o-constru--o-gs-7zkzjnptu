@@ -39,6 +39,7 @@ import { toast } from '@/hooks/use-toast'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 type CartItem = SaleItem & { unitPrice: number; basePrice: number }
 
@@ -165,8 +166,9 @@ export default function Sales() {
   } | null>(null)
   const [isExtractOpen, setIsExtractOpen] = useState(false)
 
+  const currentSellerMaxDiscount = currentSeller?.maxDiscountLimit || 1000
   const isExceedingDebit = totals.diff < 0 && Math.abs(totals.diff) > currentBalance
-  const isExceedingLimit = Math.abs(totals.diff) > 1000
+  const isExceedingLimit = totals.diff < 0 && Math.abs(totals.diff) > currentSellerMaxDiscount
 
   const handleFinishSale = () => {
     if (cart.length === 0) return
@@ -185,7 +187,7 @@ export default function Sales() {
     if (isExceedingLimit) {
       toast({
         title: 'Limite excedido',
-        description: 'O ajuste máximo por pedido é de R$ 1.000,00',
+        description: 'Operação excede o limite permitido para seu perfil.',
         variant: 'destructive',
       })
       return
@@ -473,24 +475,36 @@ export default function Sales() {
                     </SelectContent>
                   </Select>
                   {currentSeller && (
-                    <div className="flex items-center justify-between mt-2 p-3 bg-muted/50 rounded-lg border">
-                      <div className="flex flex-col">
-                        <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-                          Saldo de Créditos
-                        </span>
-                        <span
-                          className={cn(
-                            'text-lg font-bold',
-                            currentBalance > 0 ? 'text-emerald-600' : 'text-primary',
-                          )}
-                        >
-                          {formatCurrency(currentBalance)}
-                        </span>
+                    <>
+                      <div className="flex items-center justify-between mt-2 p-3 bg-muted/50 rounded-lg border">
+                        <div className="flex flex-col">
+                          <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                            Saldo de Créditos
+                          </span>
+                          <span
+                            className={cn(
+                              'text-lg font-bold',
+                              currentBalance > 0 ? 'text-emerald-600' : 'text-primary',
+                            )}
+                          >
+                            {formatCurrency(currentBalance)}
+                          </span>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => setIsExtractOpen(true)}>
+                          Ver Extrato
+                        </Button>
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => setIsExtractOpen(true)}>
-                        Ver Extrato
-                      </Button>
-                    </div>
+                      {currentBalance < 50 && (
+                        <Alert className="bg-amber-50 border-amber-200 mt-2 text-amber-800">
+                          <AlertCircle className="h-4 w-4 text-amber-600" />
+                          <AlertTitle className="text-amber-800">Atenção: Saldo Baixo</AlertTitle>
+                          <AlertDescription className="text-amber-700/90 text-xs">
+                            Seu saldo de créditos está baixo ({formatCurrency(currentBalance)}).
+                            Procure realizar vendas acima do preço base para recuperar sua margem.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -568,7 +582,8 @@ export default function Sales() {
                   <div className="flex items-start gap-2 text-red-700 bg-red-50 p-3 rounded-md border border-red-200 mt-4 animate-in fade-in zoom-in duration-300">
                     <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
                     <span className="text-sm font-medium">
-                      Limite excedido. O ajuste máximo permitido por pedido é de R$ 1.000,00.
+                      Operação excede o limite permitido para seu perfil. O limite de desconto é de{' '}
+                      {formatCurrency(currentSellerMaxDiscount)}.
                     </span>
                   </div>
                 )}

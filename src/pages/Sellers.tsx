@@ -46,6 +46,7 @@ export default function Sellers() {
   const [editingSeller, setEditingSeller] = useState<Seller | null>(null)
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
+  const [maxDiscountLimit, setMaxDiscountLimit] = useState('')
 
   const [isStatementOpen, setIsStatementOpen] = useState(false)
   const [selectedSeller, setSelectedSeller] = useState<Seller | null>(null)
@@ -65,6 +66,7 @@ export default function Sellers() {
     setEditingSeller(null)
     setCode('')
     setName('')
+    setMaxDiscountLimit('1000')
     setIsFormOpen(true)
   }
 
@@ -72,16 +74,23 @@ export default function Sellers() {
     setEditingSeller(seller)
     setCode(seller.code)
     setName(seller.name)
+    setMaxDiscountLimit(seller.maxDiscountLimit?.toString() || '1000')
     setIsFormOpen(true)
   }
 
   const handleSave = () => {
     if (!code.trim() || !name.trim()) return
 
+    const limit = parseFloat(maxDiscountLimit) || 0
+
     if (editingSeller) {
-      updateSeller(editingSeller.id, { code: code.trim(), name: name.trim() })
+      updateSeller(editingSeller.id, {
+        code: code.trim(),
+        name: name.trim(),
+        maxDiscountLimit: limit,
+      })
     } else {
-      addSeller({ code: code.trim(), name: name.trim() })
+      addSeller({ code: code.trim(), name: name.trim(), maxDiscountLimit: limit })
     }
     setIsFormOpen(false)
   }
@@ -154,6 +163,7 @@ export default function Sellers() {
               <TableHead className="text-right">Saldo Atual</TableHead>
               <TableHead className="text-right">Total Créditos</TableHead>
               <TableHead className="text-right">Total Débitos</TableHead>
+              <TableHead className="text-right">Limite Desconto</TableHead>
               <TableHead className="text-center">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -180,6 +190,9 @@ export default function Sellers() {
                 </TableCell>
                 <TableCell className="text-right text-red-600 font-medium">
                   -{formatCurrency(s.totalDebits)}
+                </TableCell>
+                <TableCell className="text-right text-muted-foreground font-medium">
+                  {formatCurrency(s.maxDiscountLimit || 1000)}
                 </TableCell>
                 <TableCell className="text-center space-x-2">
                   <Button
@@ -249,6 +262,17 @@ export default function Sellers() {
                 placeholder="Ex: Pedro Silva"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Limite Máx. de Desconto por Venda (R$)</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Ex: 1000.00"
+                value={maxDiscountLimit}
+                onChange={(e) => setMaxDiscountLimit(e.target.value)}
               />
             </div>
           </div>

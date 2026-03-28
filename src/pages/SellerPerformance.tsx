@@ -19,11 +19,11 @@ import {
 } from '@/components/ui/select'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from 'recharts'
-import { TrendingUp, Users, Target, Award } from 'lucide-react'
+import { TrendingUp, Users, Target, Award, Star } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 
 export default function SellerPerformance() {
-  const { sales, users } = useAppContext()
+  const { sales, users, sellerCreditHistory, sellers } = useAppContext()
   const [period, setPeriod] = useState('month') // today, 7days, month, all
 
   const filteredSales = useMemo(() => {
@@ -71,6 +71,42 @@ export default function SellerPerformance() {
 
     return result
   }, [filteredSales, users])
+
+  const creditRanking = useMemo(() => {
+    const now = new Date()
+    let start = new Date(0)
+    let end = new Date()
+
+    if (period === 'today') {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    } else if (period === '7days') {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7)
+    } else if (period === 'month') {
+      start = new Date(now.getFullYear(), now.getMonth(), 1)
+    }
+
+    const filteredCredits = sellerCreditHistory.filter((h) => {
+      const d = new Date(h.createdAt)
+      return h.type === 'credito' && d >= start && d <= end
+    })
+
+    const stats: Record<string, { id: string; name: string; code: string; totalCredit: number }> =
+      {}
+
+    sellers.forEach((s) => {
+      stats[s.id] = { id: s.id, name: s.name, code: s.code, totalCredit: 0 }
+    })
+
+    filteredCredits.forEach((c) => {
+      if (stats[c.sellerId]) {
+        stats[c.sellerId].totalCredit += c.value
+      }
+    })
+
+    return Object.values(stats)
+      .filter((s) => s.totalCredit > 0)
+      .sort((a, b) => b.totalCredit - a.totalCredit)
+  }, [sellerCreditHistory, sellers, period])
 
   const totalRevenue = sellerStats.reduce((acc, curr) => acc + curr.revenue, 0)
   const totalSalesCount = sellerStats.reduce((acc, curr) => acc + curr.count, 0)
@@ -207,6 +243,53 @@ export default function SellerPerformance() {
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                       Nenhum dado encontrado para o período.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div>
+        <h2 className="text-xl font-bold tracking-tight mt-6 mb-4 flex items-center gap-2">
+          <Star className="h-5 w-5 text-amber-500" /> Ranking de Créditos (Recuperação de Margem)
+        </h2>
+        <Card className="flex flex-col">
+          <CardHeader>
+            <CardTitle>Top Vendedores</CardTitle>
+            <CardDescription>
+              Classificação baseada em créditos gerados através de vendas acima do preço base no
+              período selecionado.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex-1 p-0 overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-16 text-center">Pos</TableHead>
+                  <TableHead>Vendedor</TableHead>
+                  <TableHead className="text-right pr-6">Créditos Gerados</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {creditRanking.map((seller, index) => (
+                  <TableRow key={seller.id}>
+                    <TableCell className="text-center font-bold">{index + 1}º</TableCell>
+                    <TableCell className="font-medium">
+                      {seller.name}{' '}
+                      <span className="text-muted-foreground text-xs ml-1">({seller.code})</span>
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-emerald-600 pr-6">
+                      +{formatCurrency(seller.totalCredit)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {creditRanking.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                      Nenhum crédito gerado no período selecionado.
                     </TableCell>
                   </TableRow>
                 )}

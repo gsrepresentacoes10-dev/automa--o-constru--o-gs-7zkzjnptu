@@ -44,7 +44,7 @@ import {
   Pie,
   Cell,
 } from 'recharts'
-import { startOfDay, subDays, startOfMonth } from 'date-fns'
+import { startOfDay, subDays, startOfMonth, endOfDay } from 'date-fns'
 
 const COLORS = [
   'hsl(var(--chart-1))',
@@ -55,11 +55,15 @@ const COLORS = [
 ]
 
 export default function Reports() {
-  const { sales } = useAppContext()
+  const { sales, sellerCreditHistory } = useAppContext()
 
   const [perfPeriod, setPerfPeriod] = useState('month') // today, week, month, custom
   const [perfCustomStart, setPerfCustomStart] = useState('')
   const [perfCustomEnd, setPerfCustomEnd] = useState('')
+
+  const [marginPeriod, setMarginPeriod] = useState('month')
+  const [marginCustomStart, setMarginCustomStart] = useState('')
+  const [marginCustomEnd, setMarginCustomEnd] = useState('')
 
   const abcData = useMemo(() => {
     const productTotals = new Map<string, { product: Product; total: number; qty: number }>()
@@ -156,6 +160,49 @@ export default function Reports() {
     return { revenue, cost, profit, margin, topProducts }
   }, [filteredPerfSales])
 
+  const marginMetrics = useMemo(() => {
+    let start = new Date(0)
+    let end = new Date()
+    const now = new Date()
+
+    if (marginPeriod === 'today') {
+      start = startOfDay(now)
+      end = endOfDay(now)
+    } else if (marginPeriod === 'week') {
+      start = startOfDay(subDays(now, 7))
+      end = endOfDay(now)
+    } else if (marginPeriod === 'month') {
+      start = startOfDay(startOfMonth(now))
+      end = endOfDay(now)
+    } else if (marginPeriod === 'custom') {
+      start = marginCustomStart ? new Date(marginCustomStart + 'T00:00:00') : new Date(0)
+      end = marginCustomEnd ? new Date(marginCustomEnd + 'T23:59:59') : new Date()
+    }
+
+    const filteredHistory = sellerCreditHistory.filter((h) => {
+      const d = new Date(h.createdAt)
+      return d >= start && d <= end
+    })
+
+    const lostProfit = filteredHistory
+      .filter((h) => h.type === 'debito')
+      .reduce((acc, curr) => acc + Math.abs(curr.value), 0)
+
+    const recoveredProfit = filteredHistory
+      .filter((h) => h.type === 'credito')
+      .reduce((acc, curr) => acc + curr.value, 0)
+
+    return { lostProfit, recoveredProfit }
+  }, [sellerCreditHistory, marginPeriod, marginCustomStart, marginCustomEnd])
+
+  const marginChartData = [
+    {
+      name: 'Resultado',
+      'Lucro Recuperado': marginMetrics.recoveredProfit,
+      'Lucro Potencial Perdido': marginMetrics.lostProfit,
+    },
+  ]
+
   const chartData = [
     { month: 'Jan', vendas: 45000, custos: 32000 },
     { month: 'Fev', vendas: 52000, custos: 34000 },
@@ -197,6 +244,7 @@ export default function Reports() {
             <TabsTrigger value="geral">Geral Financeiro</TabsTrigger>
             <TabsTrigger value="performance">Desempenho (Lucro)</TabsTrigger>
             <TabsTrigger value="abc">Curva ABC</TabsTrigger>
+            <TabsTrigger value="margens">Margens e Créditos</TabsTrigger>
           </TabsList>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => exportSalesToExcel(sales)}>
@@ -502,6 +550,113 @@ export default function Reports() {
                 )}
               </TableBody>
             </Table>
+          </CardContent>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="margens" className="mt-0 print:hidden flex-1 space-y-6">
+        <div className="flex flex-col sm:flex-row gap-4 items-end mb-4 bg-muted/20 p-4 rounded-lg border">
+          <div className="space-y-1.5 w-full sm:w-48">
+            <Label>Período de Análise</Label>
+            <Select value={marginPeriod} onValueChange={setMarginPeriod}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="today">Hoje</SelectItem>
+                <SelectItem value="week">Últimos 7 dias</SelectItem>
+                <SelectItem value="month">Mês Atual</SelectItem>
+                <SelectItem value="custom">Personalizado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {marginPeriod === 'custom' && (
+            <>
+              <div className="space-y-1.5 w-full sm:w-auto">
+                <Label>Início</Label>
+                <Input
+                  type="date"
+                  value={marginCustomStart}
+                  onChange={(e) => setMarginCustomStart(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5 w-full sm:w-auto">
+                <Label>Fim</Label>
+                <Input
+                  type="date"
+                  value={marginCustomEnd}
+                  onChange={(e) => setMarginCustomEnd(e.target.value)}
+                />
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="border-emerald-200">
+            <CardHeader className="bg-emerald-50/50 pb-2">
+              <CardTitle className="text-emerald-700 text-sm">Lucro Recuperado</CardTitle>
+              <CardDescription>
+                Soma de todos os prêmios/acréscimos aplicados nas vendas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="text-3xl font-bold text-emerald-600">
+                {formatCurrency(marginMetrics.recoveredProfit)}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-red-200">
+            <CardHeader className="bg-red-50/50 pb-2">
+              <CardTitle className="text-red-700 text-sm">Lucro Potencial Perdido</CardTitle>
+              <CardDescription>Soma de todos os descontos concedidos nas vendas.</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="text-3xl font-bold text-red-600">
+                {formatCurrency(marginMetrics.lostProfit)}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Comparativo de Margens</CardTitle>
+            <CardDescription>Visão geral de recuperação vs perdas no período.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={{
+                'Lucro Recuperado': { label: 'Recuperado', color: 'hsl(var(--emerald-500))' },
+                'Lucro Potencial Perdido': { label: 'Perdido', color: 'hsl(var(--red-500))' },
+              }}
+              className="h-[300px] w-full"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={marginChartData}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" />
+                  <YAxis tickFormatter={(val) => `R$${val / 1000}k`} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  <Bar
+                    dataKey="Lucro Recuperado"
+                    fill="#10b981"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={100}
+                  />
+                  <Bar
+                    dataKey="Lucro Potencial Perdido"
+                    fill="#ef4444"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={100}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
           </CardContent>
         </Card>
       </TabsContent>
