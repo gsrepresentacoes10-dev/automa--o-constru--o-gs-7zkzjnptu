@@ -108,7 +108,12 @@ const menuSections = [
       { title: 'Fornecedores', url: '/fornecedores', icon: Truck, roles: ['Admin', 'Manager'] },
       { title: 'Colaboradores', url: '/colaboradores', icon: Tags, roles: ['Admin', 'Manager'] },
       { title: 'Clientes', url: '/clientes', icon: Users, roles: ['Admin', 'Manager'] },
-      { title: 'Usuários do Sistema', url: '/usuarios', icon: UserCog, roles: ['Admin'] },
+      {
+        title: 'Acessos e Permissões',
+        url: '/usuarios',
+        icon: UserCog,
+        roles: ['Admin', 'Manager'],
+      },
       { title: 'Logs de Acesso', url: '/logs-acesso', icon: History, roles: ['Admin'] },
     ],
   },

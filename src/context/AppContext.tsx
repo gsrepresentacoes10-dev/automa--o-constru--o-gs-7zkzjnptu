@@ -11,6 +11,7 @@ export interface User {
   password?: string
   phone?: string
   avatar?: string
+  permissions?: string[]
 }
 
 export interface AccessLog {
@@ -341,15 +342,17 @@ interface AppContextType {
   updateProfile: (data: Partial<User>) => void
   resetPassword: (email: string, newPass: string) => boolean
   accessLogs: AccessLog[]
+  updateUser: (id: string, data: Partial<User>) => void
 }
 
 const initialUsers: User[] = [
   {
     id: '1',
-    name: 'Carlos Admin',
+    name: 'Carlos Admin (Master)',
     email: 'admin@construmaster.com',
     role: 'Admin',
     password: '123',
+    permissions: [], // Master profile implicitly has total access
   },
   {
     id: '2',
@@ -586,7 +589,7 @@ const initialSales: Sale[] = [
       {
         timestamp: new Date().toISOString(),
         action: 'Criação do Pedido',
-        userName: 'Pedro Vendedor',
+        userName: 'Pedro Colaborador',
         paymentMethod: 'PIX',
       },
     ],
@@ -613,7 +616,7 @@ const initialSales: Sale[] = [
       {
         timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
         action: 'Criação do Pedido (Aguardando Aprovação Financeira)',
-        userName: 'Pedro Vendedor',
+        userName: 'Pedro Colaborador',
         paymentMethod: 'Venda a Prazo',
       },
     ],
@@ -907,7 +910,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       password: data.password,
       role: data.role,
     }
-    const updatedUsers = [...users, newUser]
+    const updatedUsers = [...users, { ...newUser, permissions: [] }]
     setUsers(updatedUsers)
 
     setIsAuthenticated(true)
@@ -963,13 +966,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const addUser = (newUser: Omit<User, 'id'>) => {
-    setUsers([...users, { ...newUser, id: Date.now().toString() }])
-    toast({ title: 'Usuário Adicionado', description: 'O acesso foi concedido com sucesso.' })
+    setUsers([...users, { ...newUser, id: Date.now().toString(), permissions: [] }])
+    toast({ title: 'Colaborador Adicionado', description: 'O acesso foi concedido com sucesso.' })
+  }
+
+  const updateUser = (id: string, data: Partial<User>) => {
+    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...data } : u)))
   }
 
   const deleteUser = (id: string) => {
     setUsers(users.filter((u) => u.id !== id))
-    toast({ title: 'Usuário Removido', description: 'O acesso foi revogado.' })
+    toast({ title: 'Colaborador Removido', description: 'O acesso foi revogado.' })
   }
 
   const addSeller = (
@@ -1873,6 +1880,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         register: registerUser,
         socialLogin,
         updateProfile,
+        updateUser,
         resetPassword,
         accessLogs,
         logout,
