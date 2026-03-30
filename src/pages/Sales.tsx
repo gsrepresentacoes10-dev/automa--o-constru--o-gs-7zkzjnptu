@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   PackageSearch,
   AlertCircle,
+  Printer,
 } from 'lucide-react'
 import { useAppContext, Product, SaleItem } from '@/context/AppContext'
 import { Button } from '@/components/ui/button'
@@ -60,9 +61,11 @@ export default function Sales() {
 
   // New Sale State
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('final')
-  const [selectedSellerId, setSelectedSellerId] = useState<string>(
-    currentUser.role === 'Seller' ? sellers.find((s) => s.name === currentUser.name)?.id || '' : '',
-  )
+
+  const defaultSeller = sellers.find((s) => s.name === currentUser.name) || sellers[0]
+  const [selectedSellerId, setSelectedSellerId] = useState<string>(defaultSeller?.id || '')
+  const [globalDiscount, setGlobalDiscount] = useState<number>(0)
+  const [saleToPrint, setSaleToPrint] = useState<Sale | null>(null)
   const [cart, setCart] = useState<CartItem[]>([])
   const [productSearch, setProductSearch] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<string>('PIX')
@@ -148,14 +151,15 @@ export default function Sales() {
 
   const totals = useMemo(() => {
     let totalBase = 0
-    let totalFinal = 0
+    let totalItemsFinal = 0
     cart.forEach((item) => {
       totalBase += item.basePrice * item.quantity
-      totalFinal += item.unitPrice * item.quantity
+      totalItemsFinal += item.unitPrice * item.quantity
     })
+    const totalFinal = Math.max(0, totalItemsFinal - globalDiscount)
     const diff = totalFinal - totalBase // Positive = Credit generated, Negative = Debit used
-    return { totalBase, totalFinal, diff }
-  }, [cart])
+    return { totalBase, totalItemsFinal, totalFinal, diff }
+  }, [cart, globalDiscount])
 
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
   const [saleResult, setSaleResult] = useState<{
@@ -170,10 +174,13 @@ export default function Sales() {
   const isExceedingDebit = totals.diff < 0 && Math.abs(totals.diff) > currentBalance
   const isExceedingLimit = totals.diff < 0 && Math.abs(totals.diff) > currentSellerMaxDiscount
 
+  const isTermSale = paymentMethod === 'Venda a Prazo'
+  const isCustomerRequired = isTermSale && selectedCustomerId === 'final'
+
   const handleFinishSale = () => {
     if (cart.length === 0) return
     if (!currentSeller) {
-      toast({ title: 'Selecione um vendedor', variant: 'destructive' })
+      toast({ title: 'Selecione um colaborador', variant: 'destructive' })
       return
     }
     if (isExceedingDebit) {
@@ -192,6 +199,14 @@ export default function Sales() {
       })
       return
     }
+    if (isCustomerRequired) {
+      toast({
+        title: 'Cliente Obrigatório',
+        description: 'Vendas a prazo exigem a seleção de um cliente cadastrado.',
+        variant: 'destructive',
+      })
+      return
+    }
 
     const customer = customers.find((c) => c.id === selectedCustomerId)
 
@@ -200,6 +215,7 @@ export default function Sales() {
       customer: customer?.name || 'Consumidor Final',
       items: cart.map((c) => ({ product: c.product, quantity: c.quantity, total: c.total })),
       total: totals.totalFinal,
+      discount: totals.diff < 0 ? Math.abs(totals.diff) : 0,
       paymentMethod: paymentMethod as any,
       sellerId: currentSeller.id,
       sellerName: currentSeller.name,
@@ -220,18 +236,26 @@ export default function Sales() {
         amount: Math.abs(totals.diff),
         newBalance: currentBalance + totals.diff,
       })
-      setIsConfirmOpen(true)
     } else {
+      setSaleResult({
+        diff: 0,
+        type: 'Nenhum',
+        amount: 0,
+        newBalance: currentBalance,
+      })
       toast({ title: 'Venda Concluída', description: `Pedido ${sale.id} registrado com sucesso.` })
-      resetNewSale()
     }
+    setSaleToPrint(sale)
+    setIsConfirmOpen(true)
   }
 
   const resetNewSale = () => {
     setCart([])
+    setGlobalDiscount(0)
     setView('list')
     setSaleResult(null)
     setIsConfirmOpen(false)
+    setSaleToPrint(null)
   }
 
   return (
@@ -271,10 +295,11 @@ export default function Sales() {
                 <TableHead>ID</TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead>Cliente</TableHead>
-                <TableHead>Vendedor</TableHead>
+                <TableHead>Colaborador</TableHead>
                 <TableHead>Pagamento</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="text-center w-[60px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -300,11 +325,24 @@ export default function Sales() {
                       {s.status}
                     </Badge>
                   </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Imprimir Nota"
+                      onClick={() => {
+                        setSaleToPrint(s)
+                        setTimeout(() => window.print(), 100)
+                      }}
+                    >
+                      <Printer className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
               {filteredSales.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     Nenhuma venda encontrada.
                   </TableCell>
                 </TableRow>
@@ -461,10 +499,10 @@ export default function Sales() {
               </CardHeader>
               <CardContent className="pt-6 space-y-4">
                 <div className="space-y-2">
-                  <Label>Vendedor</Label>
+                  <Label>Colaborador</Label>
                   <Select value={selectedSellerId} onValueChange={setSelectedSellerId}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione o vendedor" />
+                      <SelectValue placeholder="Selecione o colaborador" />
                     </SelectTrigger>
                     <SelectContent>
                       {sellers.map((s) => (
@@ -541,10 +579,27 @@ export default function Sales() {
                   </Select>
                 </div>
 
+                <div className="space-y-2">
+                  <Label>Desconto Fixo Adicional (R$)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={globalDiscount || ''}
+                    onChange={(e) => setGlobalDiscount(parseFloat(e.target.value) || 0)}
+                    placeholder="0.00"
+                    className="font-medium"
+                  />
+                </div>
+
                 <div className="pt-4 border-t space-y-2">
                   <div className="flex justify-between text-sm text-muted-foreground">
                     <span>Subtotal (Tabela)</span>
                     <span>{formatCurrency(totals.totalBase)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Subtotal (Itens)</span>
+                    <span>{formatCurrency(totals.totalItemsFinal)}</span>
                   </div>
                   {totals.diff !== 0 && (
                     <div
@@ -554,7 +609,7 @@ export default function Sales() {
                       )}
                     >
                       <span>
-                        {totals.diff > 0 ? 'Acréscimo (Crédito Gerado)' : 'Desconto (Débito Usado)'}
+                        {totals.diff > 0 ? 'Acréscimo (Crédito Gerado)' : 'Desconto Total (Débito)'}
                       </span>
                       <span>
                         {totals.diff > 0 ? '+' : ''}
@@ -570,6 +625,14 @@ export default function Sales() {
                   </div>
                 </div>
 
+                {isCustomerRequired && (
+                  <div className="flex items-start gap-2 text-amber-700 bg-amber-50 p-3 rounded-md border border-amber-200 mt-4 animate-in fade-in zoom-in duration-300">
+                    <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+                    <span className="text-sm font-medium">
+                      Para Venda a Prazo, é obrigatório selecionar um cliente cadastrado.
+                    </span>
+                  </div>
+                )}
                 {isExceedingDebit && (
                   <div className="flex items-start gap-2 text-red-700 bg-red-50 p-3 rounded-md border border-red-200 mt-4 animate-in fade-in zoom-in duration-300">
                     <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
@@ -593,7 +656,11 @@ export default function Sales() {
                   size="lg"
                   onClick={handleFinishSale}
                   disabled={
-                    cart.length === 0 || isExceedingDebit || isExceedingLimit || !currentSeller
+                    cart.length === 0 ||
+                    isExceedingDebit ||
+                    isExceedingLimit ||
+                    !currentSeller ||
+                    isCustomerRequired
                   }
                 >
                   <CheckCircle2 className="mr-2 h-6 w-6" />
@@ -609,39 +676,50 @@ export default function Sales() {
       <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Venda Concluída com Ajustes</DialogTitle>
+            <DialogTitle>Venda Concluída</DialogTitle>
           </DialogHeader>
           <div className="py-6 flex flex-col items-center justify-center text-center space-y-4">
             <div className="h-16 w-16 bg-emerald-100 rounded-full flex items-center justify-center mb-2">
               <CheckCircle2 className="h-10 w-10 text-emerald-600" />
             </div>
-            <p className="text-lg text-muted-foreground">
-              Preço ajustado em{' '}
-              <strong className="text-foreground">
-                {formatCurrency(Math.abs(saleResult?.diff || 0))}
-              </strong>
-              .
-            </p>
-            <p className="text-lg text-muted-foreground">
-              {saleResult?.type}:{' '}
-              <strong
-                className={saleResult?.type === 'Crédito' ? 'text-emerald-600' : 'text-blue-600'}
-              >
-                {formatCurrency(saleResult?.amount || 0)}
-              </strong>
-              .
-            </p>
-            <div className="bg-muted p-4 rounded-lg w-full mt-4 border border-border">
-              <p className="text-sm text-muted-foreground uppercase tracking-widest font-semibold mb-1">
-                Novo Saldo do Vendedor
-              </p>
-              <p className="text-2xl font-black text-primary">
-                {formatCurrency(saleResult?.newBalance || 0)}
-              </p>
-            </div>
+            {saleResult?.diff !== 0 ? (
+              <>
+                <p className="text-lg text-muted-foreground">
+                  Preço ajustado em{' '}
+                  <strong className="text-foreground">
+                    {formatCurrency(Math.abs(saleResult?.diff || 0))}
+                  </strong>
+                  .
+                </p>
+                <p className="text-lg text-muted-foreground">
+                  {saleResult?.type}:{' '}
+                  <strong
+                    className={
+                      saleResult?.type === 'Crédito' ? 'text-emerald-600' : 'text-blue-600'
+                    }
+                  >
+                    {formatCurrency(saleResult?.amount || 0)}
+                  </strong>
+                  .
+                </p>
+                <div className="bg-muted p-4 rounded-lg w-full mt-4 border border-border">
+                  <p className="text-sm text-muted-foreground uppercase tracking-widest font-semibold mb-1">
+                    Novo Saldo do Colaborador
+                  </p>
+                  <p className="text-2xl font-black text-primary">
+                    {formatCurrency(saleResult?.newBalance || 0)}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <p className="text-lg text-muted-foreground">Pedido registrado com sucesso.</p>
+            )}
           </div>
-          <DialogFooter>
-            <Button onClick={resetNewSale} className="w-full h-12">
+          <DialogFooter className="flex-col sm:flex-col space-y-2">
+            <Button onClick={() => window.print()} variant="outline" className="w-full h-12">
+              <Printer className="mr-2 h-5 w-5" /> Imprimir Nota
+            </Button>
+            <Button onClick={resetNewSale} className="w-full h-12 mt-2 sm:mt-0">
               Fechar e Nova Venda
             </Button>
           </DialogFooter>
@@ -729,6 +807,97 @@ export default function Sales() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+      {/* Printable Receipt */}
+      {saleToPrint && (
+        <div className="print-container hidden print:block bg-white text-black p-8">
+          <style>{`
+            @media print {
+              body * { visibility: hidden; }
+              .print-container, .print-container * { visibility: visible; }
+              .print-container { position: absolute; left: 0; top: 0; width: 100%; min-height: 100vh; }
+              @page { margin: 1cm; }
+            }
+          `}</style>
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-bold uppercase tracking-tight">
+              GS MATERIAIS DE CONSTRUCAO
+            </h1>
+            <p className="text-sm text-gray-600">Nota de Venda #{saleToPrint.id}</p>
+            <p className="text-sm text-gray-600">
+              Data: {new Date(saleToPrint.date).toLocaleString('pt-BR')}
+            </p>
+          </div>
+
+          <div className="mb-6 flex justify-between text-sm">
+            <div>
+              <p>
+                <strong>Cliente:</strong> {saleToPrint.customer || 'Consumidor Final'}
+              </p>
+              <p>
+                <strong>Colaborador:</strong> {saleToPrint.sellerName}
+              </p>
+            </div>
+            <div className="text-right">
+              <p>
+                <strong>Forma de Pagamento:</strong> {saleToPrint.paymentMethod}
+              </p>
+            </div>
+          </div>
+
+          <table className="w-full mb-6 text-sm border-collapse">
+            <thead>
+              <tr className="border-b-2 border-black">
+                <th className="text-left py-2">Produto</th>
+                <th className="text-center py-2">Qtd</th>
+                <th className="text-right py-2">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {saleToPrint.items.map((item, i) => (
+                <tr key={i} className="border-b border-gray-300">
+                  <td className="py-2">{item.product.name}</td>
+                  <td className="text-center py-2">{item.quantity}</td>
+                  <td className="text-right py-2">{formatCurrency(item.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="flex flex-col items-end mb-8 space-y-1">
+            {saleToPrint.discount ? (
+              <p className="text-sm">Desconto Aplicado: {formatCurrency(saleToPrint.discount)}</p>
+            ) : null}
+            <p className="text-xl font-bold">Total Pago: {formatCurrency(saleToPrint.total)}</p>
+          </div>
+
+          {saleToPrint.paymentMethod === 'Venda a Prazo' && (
+            <div className="mb-8 border-2 border-black p-4 text-justify text-sm rounded">
+              <h2 className="font-bold text-center mb-3">CONTRATO DE COMPRA E VENDA A PRAZO</h2>
+              <p>
+                Pelo presente instrumento, o Cliente (<strong>{saleToPrint.customer}</strong>)
+                reconhece a dívida no valor de <strong>{formatCurrency(saleToPrint.total)}</strong>,
+                referente à aquisição dos produtos acima descritos.
+              </p>
+              <p className="mt-2">
+                <strong>Vencimento:</strong>{' '}
+                {new Date(
+                  new Date(saleToPrint.date).getTime() + 30 * 24 * 60 * 60 * 1000,
+                ).toLocaleDateString('pt-BR')}{' '}
+                (30 dias)
+              </p>
+              <p className="mt-2">
+                O não pagamento até a data de vencimento sujeitará o devedor às penalidades cabíveis
+                previstas em lei.
+              </p>
+            </div>
+          )}
+
+          <div className="mt-24 pt-8 w-3/4 mx-auto text-center border-t border-black">
+            <p className="font-bold">Assinatura do Cliente</p>
+            <p className="text-sm mt-1">{saleToPrint.customer || 'Consumidor Final'}</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
