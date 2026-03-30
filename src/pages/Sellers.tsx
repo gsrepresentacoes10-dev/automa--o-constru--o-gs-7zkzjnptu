@@ -32,6 +32,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 
 export default function Sellers() {
   const {
+    role,
     sellers,
     addSeller,
     updateSeller,
@@ -46,6 +47,7 @@ export default function Sellers() {
   const [editingSeller, setEditingSeller] = useState<Seller | null>(null)
   const [code, setCode] = useState('')
   const [name, setName] = useState('')
+  const [sellerFunction, setSellerFunction] = useState('Vendas')
   const [maxDiscountLimit, setMaxDiscountLimit] = useState('')
 
   const [isStatementOpen, setIsStatementOpen] = useState(false)
@@ -66,6 +68,7 @@ export default function Sellers() {
     setEditingSeller(null)
     setCode('')
     setName('')
+    setSellerFunction('Vendas')
     setMaxDiscountLimit('1000')
     setIsFormOpen(true)
   }
@@ -74,6 +77,7 @@ export default function Sellers() {
     setEditingSeller(seller)
     setCode(seller.code)
     setName(seller.name)
+    setSellerFunction(seller.function || 'Vendas')
     setMaxDiscountLimit(seller.maxDiscountLimit?.toString() || '1000')
     setIsFormOpen(true)
   }
@@ -87,10 +91,16 @@ export default function Sellers() {
       updateSeller(editingSeller.id, {
         code: code.trim(),
         name: name.trim(),
+        function: sellerFunction,
         maxDiscountLimit: limit,
       })
     } else {
-      addSeller({ code: code.trim(), name: name.trim(), maxDiscountLimit: limit })
+      addSeller({
+        code: code.trim(),
+        name: name.trim(),
+        function: sellerFunction,
+        maxDiscountLimit: limit,
+      })
     }
     setIsFormOpen(false)
   }
@@ -129,17 +139,19 @@ export default function Sellers() {
     setIsAdjustOpen(false)
   }
 
+  const canEditFunction = role === 'Admin' || role === 'Manager'
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Gestão de Vendedores</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Gestão de Colaboradores</h1>
           <p className="text-muted-foreground">
-            Gerencie a equipe de vendas e seus saldos de crédito/débito.
+            Gerencie a equipe e seus saldos de crédito/débito.
           </p>
         </div>
         <Button onClick={openNew}>
-          <Plus className="mr-2 h-4 w-4" /> Novo Vendedor
+          <Plus className="mr-2 h-4 w-4" /> Novo Colaborador
         </Button>
       </div>
 
@@ -160,6 +172,7 @@ export default function Sellers() {
             <TableRow>
               <TableHead className="w-[100px]">Código</TableHead>
               <TableHead>Nome</TableHead>
+              <TableHead>Função</TableHead>
               <TableHead className="text-right">Saldo Atual</TableHead>
               <TableHead className="text-right">Total Créditos</TableHead>
               <TableHead className="text-right">Total Débitos</TableHead>
@@ -177,6 +190,9 @@ export default function Sellers() {
                   </div>
                 </TableCell>
                 <TableCell className="font-bold">{s.name}</TableCell>
+                <TableCell>
+                  <Badge variant="secondary">{s.function || 'Não definida'}</Badge>
+                </TableCell>
                 <TableCell
                   className={cn(
                     'text-right font-bold text-lg',
@@ -232,8 +248,8 @@ export default function Sellers() {
             ))}
             {filteredSellers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  Nenhum vendedor encontrado.
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  Nenhum colaborador encontrado.
                 </TableCell>
               </TableRow>
             )}
@@ -241,17 +257,16 @@ export default function Sellers() {
         </Table>
       </div>
 
-      {/* Edit Seller Modal */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingSeller ? 'Editar Vendedor' : 'Novo Vendedor'}</DialogTitle>
+            <DialogTitle>{editingSeller ? 'Editar Colaborador' : 'Novo Colaborador'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label>Código do Vendedor (ID / Crachá)</Label>
+              <Label>Código (ID / Crachá)</Label>
               <Input
-                placeholder="Ex: V001"
+                placeholder="Ex: C001"
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
               />
@@ -264,6 +279,26 @@ export default function Sellers() {
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
+
+            {canEditFunction && (
+              <div className="space-y-2">
+                <Label>Função</Label>
+                <Select value={sellerFunction} onValueChange={setSellerFunction} required>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a função" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Vendas">Vendas</SelectItem>
+                    <SelectItem value="Caixa">Caixa</SelectItem>
+                    <SelectItem value="Estoque">Estoque</SelectItem>
+                    <SelectItem value="Motorista">Motorista</SelectItem>
+                    <SelectItem value="Gerência">Gerência</SelectItem>
+                    <SelectItem value="Administrativo">Administrativo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Limite Máx. de Desconto por Venda (R$)</Label>
               <Input
@@ -280,14 +315,16 @@ export default function Sellers() {
             <Button variant="outline" onClick={() => setIsFormOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleSave} disabled={!code.trim() || !name.trim()}>
+            <Button
+              onClick={handleSave}
+              disabled={!code.trim() || !name.trim() || (canEditFunction && !sellerFunction)}
+            >
               Salvar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Adjust Balance Modal */}
       <Dialog open={isAdjustOpen} onOpenChange={setIsAdjustOpen}>
         <DialogContent>
           <DialogHeader>
@@ -360,7 +397,6 @@ export default function Sellers() {
         </DialogContent>
       </Dialog>
 
-      {/* Statement / Extrato Modal */}
       <Dialog open={isStatementOpen} onOpenChange={setIsStatementOpen}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>

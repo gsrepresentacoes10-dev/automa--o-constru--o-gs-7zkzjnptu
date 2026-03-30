@@ -25,6 +25,7 @@ export interface Seller {
   id: string
   code: string
   name: string
+  function?: string
   currentBalance: number
   totalCredits: number
   totalDebits: number
@@ -359,8 +360,8 @@ const initialUsers: User[] = [
   },
   {
     id: '3',
-    name: 'Pedro Vendedor',
-    email: 'vendedor@construmaster.com',
+    name: 'Pedro Colaborador',
+    email: 'colaborador@construmaster.com',
     role: 'Seller',
     password: '123',
   },
@@ -369,8 +370,9 @@ const initialUsers: User[] = [
 const initialSellers: Seller[] = [
   {
     id: '1',
-    code: 'V001',
-    name: 'Pedro Vendedor',
+    code: 'C001',
+    name: 'Pedro Colaborador',
+    function: 'Vendas',
     currentBalance: 150.5,
     totalCredits: 200,
     totalDebits: 49.5,
@@ -378,8 +380,9 @@ const initialSellers: Seller[] = [
   },
   {
     id: '2',
-    code: 'V002',
+    code: 'C002',
     name: 'Ana Gerente',
+    function: 'Gerência',
     currentBalance: 0,
     totalCredits: 0,
     totalDebits: 0,
@@ -408,7 +411,7 @@ const initialSellerCreditHistory: SellerCreditHistory[] = [
     newBalance: 150.5,
     saleId: 'V-1002',
     reason: 'Desconto em venda',
-    createdBy: 'Pedro Vendedor',
+    createdBy: 'Pedro Colaborador',
     createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
   },
 ]
@@ -578,7 +581,7 @@ const initialSales: Sale[] = [
     status: 'Pago',
     paymentMethod: 'PIX',
     sellerId: '3',
-    sellerName: 'Pedro Vendedor',
+    sellerName: 'Pedro Colaborador',
     history: [
       {
         timestamp: new Date().toISOString(),
@@ -603,7 +606,7 @@ const initialSales: Sale[] = [
     paymentMethod: 'Venda a Prazo',
     dueDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     sellerId: '3',
-    sellerName: 'Pedro Vendedor',
+    sellerName: 'Pedro Colaborador',
     whatsappReminder: true,
     whatsappReminderDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
     history: [
@@ -735,8 +738,8 @@ const initialQuotes: Quote[] = [
     total: 2995,
     status: 'Pendente',
     sellerId: '1',
-    sellerCode: 'V001',
-    sellerName: 'Pedro Vendedor',
+    sellerCode: 'C001',
+    sellerName: 'Pedro Colaborador',
     editHistory: [],
     whatsappReminder: true,
     whatsappReminderDate: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString(),
@@ -751,7 +754,7 @@ const initialQuotes: Quote[] = [
     total: 225,
     status: 'Aprovado',
     sellerId: '2',
-    sellerCode: 'V002',
+    sellerCode: 'C002',
     sellerName: 'Ana Gerente',
     editHistory: [],
   },
@@ -857,9 +860,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       const newSeller: Seller = {
         id: user.id,
-        code: `V${Math.floor(Math.random() * 1000)
+        code: `C${Math.floor(Math.random() * 1000)
           .toString()
           .padStart(3, '0')}`,
+        function: 'Vendas',
         name: user.name,
         currentBalance: 0,
         totalCredits: 0,
@@ -916,9 +920,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (newUser.role === 'Seller') {
       const newSeller: Seller = {
         id: newUser.id,
-        code: `V${Math.floor(Math.random() * 1000)
+        code: `C${Math.floor(Math.random() * 1000)
           .toString()
           .padStart(3, '0')}`,
+        function: 'Vendas',
         name: newUser.name,
         currentBalance: 0,
         totalCredits: 0,
@@ -978,17 +983,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       totalDebits: 0,
     }
     setSellers([...sellers, newSeller])
-    toast({ title: 'Vendedor Cadastrado', description: 'Vendedor adicionado com sucesso.' })
+    toast({ title: 'Colaborador Cadastrado', description: 'Colaborador adicionado com sucesso.' })
   }
 
   const updateSeller = (id: string, seller: Partial<Seller>) => {
     setSellers((prev) => prev.map((s) => (s.id === id ? { ...s, ...seller } : s)))
-    toast({ title: 'Vendedor Atualizado', description: 'Vendedor atualizado com sucesso.' })
+    toast({ title: 'Colaborador Atualizado', description: 'Colaborador atualizado com sucesso.' })
   }
 
   const deleteSeller = (id: string) => {
     setSellers((prev) => prev.filter((s) => s.id !== id))
-    toast({ title: 'Vendedor Removido' })
+    toast({ title: 'Colaborador Removido' })
   }
 
   const adjustSellerBalance = (

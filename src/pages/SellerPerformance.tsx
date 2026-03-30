@@ -121,7 +121,7 @@ export default function SellerPerformance() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Desempenho da Equipe</h1>
           <p className="text-muted-foreground">
-            Avalie a produtividade e faturamento dos vendedores.
+            Avalie a produtividade e faturamento dos colaboradores.
           </p>
         </div>
         <div className="w-full sm:w-48">
@@ -162,7 +162,7 @@ export default function SellerPerformance() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Vendedores Ativos</CardTitle>
+            <CardTitle className="text-sm font-medium">Colaboradores Ativos</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -206,14 +206,14 @@ export default function SellerPerformance() {
 
         <Card className="flex flex-col">
           <CardHeader>
-            <CardTitle>Detalhamento por Vendedor</CardTitle>
+            <CardTitle>Detalhamento por Colaborador</CardTitle>
             <CardDescription>Métricas individuais de eficiência.</CardDescription>
           </CardHeader>
           <CardContent className="flex-1 p-0 overflow-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-6">Vendedor</TableHead>
+                  <TableHead className="pl-6">Colaborador</TableHead>
                   <TableHead className="text-center">Qtd. Vendas</TableHead>
                   <TableHead className="text-right">Ticket Médio</TableHead>
                   <TableHead className="text-right pr-6">Faturamento</TableHead>
@@ -258,7 +258,7 @@ export default function SellerPerformance() {
         </h2>
         <Card className="flex flex-col">
           <CardHeader>
-            <CardTitle>Top Vendedores</CardTitle>
+            <CardTitle>Top Colaboradores</CardTitle>
             <CardDescription>
               Classificação baseada em créditos gerados através de vendas acima do preço base no
               período selecionado.
@@ -269,7 +269,7 @@ export default function SellerPerformance() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-16 text-center">Pos</TableHead>
-                  <TableHead>Vendedor</TableHead>
+                  <TableHead>Colaborador</TableHead>
                   <TableHead className="text-right pr-6">Créditos Gerados</TableHead>
                 </TableRow>
               </TableHeader>
