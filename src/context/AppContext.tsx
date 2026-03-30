@@ -22,6 +22,23 @@ export interface AccessLog {
   timestamp: string
 }
 
+export interface PermissionAuditLog {
+  id: string
+  timestamp: string
+  adminId: string
+  adminName: string
+  targetUserId: string
+  targetUserName: string
+  action: string
+  details: string
+}
+
+export interface CustomRole {
+  id: string
+  name: string
+  permissions: string[]
+}
+
 export interface Seller {
   id: string
   code: string
@@ -343,7 +360,35 @@ interface AppContextType {
   resetPassword: (email: string, newPass: string) => boolean
   accessLogs: AccessLog[]
   updateUser: (id: string, data: Partial<User>) => void
+  permissionAuditLogs: PermissionAuditLog[]
+  customRoles: CustomRole[]
+  addCustomRole: (role: Omit<CustomRole, 'id'>) => void
+  updateCustomRole: (id: string, role: Partial<CustomRole>) => void
+  deleteCustomRole: (id: string) => void
 }
+
+const initialCustomRoles: CustomRole[] = [
+  {
+    id: 'CR-1',
+    name: 'Estoquista',
+    permissions: [
+      'estoque_movimentacoes',
+      'estoque_inventario',
+      'estoque_transferencias',
+      'estoque_alertas',
+    ],
+  },
+  {
+    id: 'CR-2',
+    name: 'Vendedor Júnior',
+    permissions: [
+      'pdv_buscar_produtos',
+      'pdv_finalizar_venda',
+      'cadastros_clientes',
+      'dashboard_kpis_pessoais',
+    ],
+  },
+]
 
 const initialUsers: User[] = [
   {
@@ -807,9 +852,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return saved ? JSON.parse(saved) : []
   })
 
+  const [permissionAuditLogs, setPermissionAuditLogs] = useState<PermissionAuditLog[]>(() => {
+    const saved = localStorage.getItem('app_perm_audit_logs')
+    return saved ? JSON.parse(saved) : []
+  })
+
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>(() => {
+    const saved = localStorage.getItem('app_custom_roles')
+    return saved ? JSON.parse(saved) : initialCustomRoles
+  })
+
   useEffect(() => {
     localStorage.setItem('app_access_logs', JSON.stringify(accessLogs))
   }, [accessLogs])
+
+  useEffect(() => {
+    localStorage.setItem('app_perm_audit_logs', JSON.stringify(permissionAuditLogs))
+  }, [permissionAuditLogs])
+
+  useEffect(() => {
+    localStorage.setItem('app_custom_roles', JSON.stringify(customRoles))
+  }, [customRoles])
 
   const [maxDiscountPercentage, setMaxDiscountPercentage] = useState<number>(10)
   const [monthlySalesGoal, setMonthlySalesGoal] = useState<number>(50000)
@@ -971,7 +1034,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const updateUser = (id: string, data: Partial<User>) => {
-    setUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...data } : u)))
+    setUsers((prev) => {
+      const userToUpdate = prev.find((u) => u.id === id)
+      if (userToUpdate && data.permissions) {
+        const added = data.permissions.filter((p) => !(userToUpdate.permissions || []).includes(p))
+        const removed = (userToUpdate.permissions || []).filter(
+          (p) => !data.permissions!.includes(p),
+        )
+
+        if (added.length > 0 || removed.length > 0) {
+          const details = [
+            added.length > 0 ? `Adicionadas: ${added.length} permissões` : '',
+            removed.length > 0 ? `Removidas: ${removed.length} permissões` : '',
+          ]
+            .filter(Boolean)
+            .join(' | ')
+
+          const newLog: PermissionAuditLog = {
+            id: `PAL-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            adminId: currentUser.id,
+            adminName: currentUser.name,
+            targetUserId: userToUpdate.id,
+            targetUserName: userToUpdate.name,
+            action: 'Atualização de Permissões',
+            details,
+          }
+          setPermissionAuditLogs((logs) => [newLog, ...logs])
+        }
+      }
+      return prev.map((u) => (u.id === id ? { ...u, ...data } : u))
+    })
   }
 
   const deleteUser = (id: string) => {
@@ -1810,6 +1903,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toast({ title: 'Caixa Fechado', description: 'Fechamento de caixa apurado com sucesso.' })
   }
 
+  const addCustomRole = (role: Omit<CustomRole, 'id'>) => {
+    const newRole: CustomRole = { ...role, id: `CR-${Date.now()}` }
+    setCustomRoles((prev) => [...prev, newRole])
+    toast({ title: 'Cargo Criado', description: `O cargo ${role.name} foi criado.` })
+  }
+
+  const updateCustomRole = (id: string, data: Partial<CustomRole>) => {
+    setCustomRoles((prev) => prev.map((r) => (r.id === id ? { ...r, ...data } : r)))
+    toast({ title: 'Cargo Atualizado', description: 'O cargo foi atualizado com sucesso.' })
+  }
+
+  const deleteCustomRole = (id: string) => {
+    setCustomRoles((prev) => prev.filter((r) => r.id !== id))
+    toast({ title: 'Cargo Removido', description: 'O cargo foi excluído.' })
+  }
+
   return (
     <AppContext.Provider
       value={{
@@ -1883,6 +1992,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updateUser,
         resetPassword,
         accessLogs,
+        permissionAuditLogs,
+        customRoles,
+        addCustomRole,
+        updateCustomRole,
+        deleteCustomRole,
         logout,
       }}
     >

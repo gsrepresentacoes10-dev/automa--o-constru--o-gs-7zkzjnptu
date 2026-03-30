@@ -13,6 +13,7 @@ import {
   XCircle,
   AlertCircle,
   Edit2,
+  LayoutDashboard,
 } from 'lucide-react'
 import { subDays, subWeeks, subMonths, format, startOfWeek, isSameMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -54,6 +55,7 @@ export default function Index() {
     sales,
     quotes,
     role,
+    currentUser,
     payables,
     purchases,
     monthlySalesGoal,
@@ -62,8 +64,33 @@ export default function Index() {
   const [isGoalDialogOpen, setIsGoalDialogOpen] = useState(false)
   const [goalInput, setGoalInput] = useState(monthlySalesGoal.toString())
 
-  if (role === 'Seller') {
-    return <Navigate to="/vendas" replace />
+  const hasPerm = (id: string) => role === 'Admin' || (currentUser.permissions || []).includes(id)
+  const hasPermPrefix = (prefix: string) =>
+    role === 'Admin' || (currentUser.permissions || []).some((p) => p.startsWith(prefix))
+
+  const canViewFinancial =
+    role === 'Admin' || hasPerm('dashboard_kpis_totais') || hasPermPrefix('financeiro_')
+  const canViewSales =
+    role === 'Admin' ||
+    hasPerm('dashboard_kpis_pessoais') ||
+    hasPerm('dashboard_kpis_totais') ||
+    hasPermPrefix('pdv_') ||
+    hasPermPrefix('dashboard_')
+  const canViewInventory = role === 'Admin' || hasPermPrefix('estoque_')
+
+  const hasAnyDashboardAccess = canViewFinancial || canViewSales || canViewInventory
+
+  if (!hasAnyDashboardAccess) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-4">
+        <LayoutDashboard className="h-16 w-16 text-muted-foreground opacity-30" />
+        <h1 className="text-2xl font-bold tracking-tight">Bem-vindo(a) ao Dashboard!</h1>
+        <p className="text-muted-foreground max-w-md">
+          Você não possui permissões para visualizar os indicadores neste momento. Navegue pelo menu
+          lateral para acessar as funcionalidades disponíveis para o seu perfil.
+        </p>
+      </div>
+    )
   }
 
   const today = new Date()
@@ -155,7 +182,7 @@ export default function Index() {
 
   return (
     <div className="space-y-6">
-      {(overduePayables.length > 0 || dueTodayPayables.length > 0) && (
+      {canViewFinancial && (overduePayables.length > 0 || dueTodayPayables.length > 0) && (
         <div className="flex flex-col gap-2">
           {overduePayables.length > 0 && (
             <Alert
@@ -183,327 +210,344 @@ export default function Index() {
 
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Business Intelligence</h1>
-        <p className="text-muted-foreground">
-          Visão geral do desempenho e saúde financeira do negócio.
-        </p>
+        <p className="text-muted-foreground">Visão geral do desempenho e saúde do negócio.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="hover:shadow-md transition-shadow relative overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Meta do Mês</CardTitle>
-            <Dialog open={isGoalDialogOpen} onOpenChange={setIsGoalDialogOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 -mr-2"
-                  onClick={() => setGoalInput(monthlySalesGoal.toString())}
-                >
-                  <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <form onSubmit={handleSaveGoal}>
-                  <DialogHeader>
-                    <DialogTitle>Configurar Meta Mensal</DialogTitle>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="space-y-2">
-                      <Label>Valor da Meta (R$)</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={goalInput}
-                        onChange={(e) => setGoalInput(e.target.value)}
-                        required
-                      />
+        {canViewSales && (
+          <Card className="hover:shadow-md transition-shadow relative overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Meta do Mês</CardTitle>
+              <Dialog open={isGoalDialogOpen} onOpenChange={setIsGoalDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 -mr-2"
+                    onClick={() => setGoalInput(monthlySalesGoal.toString())}
+                  >
+                    <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <form onSubmit={handleSaveGoal}>
+                    <DialogHeader>
+                      <DialogTitle>Configurar Meta Mensal</DialogTitle>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Valor da Meta (R$)</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={goalInput}
+                          onChange={(e) => setGoalInput(e.target.value)}
+                          required
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <DialogFooter>
-                    <Button
-                      variant="outline"
-                      type="button"
-                      onClick={() => setIsGoalDialogOpen(false)}
-                    >
-                      Cancelar
-                    </Button>
-                    <Button type="submit">Salvar Meta</Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(currentMonthSales)}</div>
-            <div className="flex justify-between text-xs text-muted-foreground mb-1 mt-1">
-              <span>Progresso</span>
-              <span>{formatCurrency(monthlySalesGoal)}</span>
-            </div>
-            <Progress
-              value={goalProgress}
-              className="h-2"
-              indicatorClassName={isGoalMet ? 'bg-emerald-500' : 'bg-primary'}
-            />
-            <p
-              className={cn(
-                'text-xs mt-2 font-medium',
-                isGoalMet ? 'text-emerald-600' : 'text-muted-foreground',
-              )}
-            >
-              {isGoalMet ? 'Meta alcançada! 🎉' : `${goalProgress.toFixed(1)}% da meta alcançada`}
-            </p>
-          </CardContent>
-        </Card>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        type="button"
+                        onClick={() => setIsGoalDialogOpen(false)}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button type="submit">Salvar Meta</Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(currentMonthSales)}</div>
+              <div className="flex justify-between text-xs text-muted-foreground mb-1 mt-1">
+                <span>Progresso</span>
+                <span>{formatCurrency(monthlySalesGoal)}</span>
+              </div>
+              <Progress
+                value={goalProgress}
+                className="h-2"
+                indicatorClassName={isGoalMet ? 'bg-emerald-500' : 'bg-primary'}
+              />
+              <p
+                className={cn(
+                  'text-xs mt-2 font-medium',
+                  isGoalMet ? 'text-emerald-600' : 'text-muted-foreground',
+                )}
+              >
+                {isGoalMet ? 'Meta alcançada! 🎉' : `${goalProgress.toFixed(1)}% da meta`}
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Faturamento Total</CardTitle>
-            <DollarSign className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{formatCurrency(totalRevenue)}</div>
-            <p className="text-xs text-muted-foreground">Toda a base registrada</p>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Vendas Realizadas</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{salesCount}</div>
-            <p className="text-xs text-muted-foreground">Pedidos finalizados</p>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow border-destructive/20">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-destructive">
-              Recebíveis Pendentes
-            </CardTitle>
-            <Landmark className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">
-              {formatCurrency(pendingReceivables)}
-            </div>
-            <p className="text-xs text-muted-foreground">Referente a Vendas a Prazo</p>
-          </CardContent>
-        </Card>
+        {canViewSales && (
+          <>
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Faturamento Total</CardTitle>
+                <DollarSign className="h-4 w-4 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-primary">
+                  {formatCurrency(totalRevenue)}
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Vendas Realizadas</CardTitle>
+                <ShoppingCart className="h-4 w-4 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{salesCount}</div>
+              </CardContent>
+            </Card>
+          </>
+        )}
+
+        {canViewFinancial && (
+          <Card className="hover:shadow-md transition-shadow border-destructive/20">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-destructive">
+                Recebíveis Pendentes
+              </CardTitle>
+              <Landmark className="h-4 w-4 text-destructive" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-destructive">
+                {formatCurrency(pendingReceivables)}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Desempenho Financeiro ({currentYear})</CardTitle>
-          <CardDescription>
-            Comparativo de Receitas (Vendas) vs Investimentos (Compras) ao longo do ano.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ChartContainer
-            config={{
-              vendas: { label: 'Receita (Vendas)', color: 'hsl(var(--primary))' },
-              compras: { label: 'Investimento (Compras)', color: 'hsl(var(--destructive))' },
-            }}
-            className="h-[350px] w-full"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={financialData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(val) => `R${val / 1000}k`}
-                />
-                <ChartTooltip
-                  content={
-                    <ChartTooltipContent formatter={(val) => formatCurrency(val as number)} />
-                  }
-                />
-                <ChartLegend content={<ChartLegendContent />} />
-                <Bar dataKey="compras" fill="var(--color-compras)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="vendas" fill="var(--color-vendas)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartContainer>
-        </CardContent>
-      </Card>
+      {canViewFinancial && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Desempenho Financeiro ({currentYear})</CardTitle>
+            <CardDescription>
+              Comparativo de Receitas (Vendas) vs Investimentos (Compras).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer
+              config={{
+                vendas: { label: 'Receita (Vendas)', color: 'hsl(var(--primary))' },
+                compras: { label: 'Investimento (Compras)', color: 'hsl(var(--destructive))' },
+              }}
+              className="h-[350px] w-full"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={financialData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(val) => `R${val / 1000}k`}
+                  />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent formatter={(val) => formatCurrency(val as number)} />
+                    }
+                  />
+                  <ChartLegend content={<ChartLegendContent />} />
+                  <Bar dataKey="compras" fill="var(--color-compras)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="vendas" fill="var(--color-vendas)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      )}
 
-      <div>
-        <h2 className="text-lg font-bold tracking-tight mb-4 mt-2">Status de Orçamentos</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
+      {canViewSales && (
+        <div>
+          <h2 className="text-lg font-bold tracking-tight mb-4 mt-2">Status de Orçamentos</h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pendentes</CardTitle>
+                <FileText className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{pendingQuotes}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-emerald-600">Aprovados</CardTitle>
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-emerald-600">{approvedQuotes}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-destructive">Reprovados</CardTitle>
+                <XCircle className="h-4 w-4 text-destructive" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-destructive">{rejectedQuotes}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-primary">Convertidos</CardTitle>
+                <ShoppingCart className="h-4 w-4 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-primary">{convertedQuotes}</div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {canViewSales && (
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle>Faturamento Semanal</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{pendingQuotes}</div>
+              <ChartContainer
+                config={{ faturamento: { label: 'Faturamento', color: 'hsl(var(--primary))' } }}
+                className="h-[250px] w-full"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dailyData}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(val) => `R${val / 1000}k`}
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar
+                      dataKey="faturamento"
+                      fill="var(--color-faturamento)"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </CardContent>
+          </Card>
+        )}
+
+        {canViewInventory && (
+          <Card className="border-destructive/30 shadow-sm flex flex-col">
+            <CardHeader className="pb-3 bg-destructive/5">
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <PackageOpen className="h-5 w-5" /> Alertas de Estoque
+              </CardTitle>
+              <CardDescription>Itens abaixo do mínimo.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1 p-0 overflow-hidden">
+              <ScrollArea className="h-[250px] p-4">
+                <div className="space-y-3">
+                  {lowStockProducts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Todos os estoques estão normais.
+                    </p>
+                  ) : (
+                    lowStockProducts.map((p) => (
+                      <div
+                        key={p.id}
+                        className="flex justify-between items-center bg-muted/30 p-2 rounded-md border border-destructive/10"
+                      >
+                        <div>
+                          <p className="font-medium text-sm leading-tight">{p.name}</p>
+                          <p className="text-[10px] text-muted-foreground">SKU: {p.sku}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-bold text-destructive">
+                            {p.stock} {p.unit}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">Mín: {p.minStock}</p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {canViewFinancial && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Tendência Mensal</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ChartContainer
+                config={{ faturamento: { label: 'Faturamento', color: 'hsl(var(--chart-2))' } }}
+                className="h-[220px] w-full"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={weeklyData}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(val) => `R${val / 1000}k`}
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Line
+                      type="monotone"
+                      dataKey="faturamento"
+                      stroke="var(--color-faturamento)"
+                      strokeWidth={3}
+                      dot={{ r: 4 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartContainer>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-emerald-600">Aprovados</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            <CardHeader>
+              <CardTitle>Histórico Semestral</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-emerald-600">{approvedQuotes}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-destructive">Reprovados</CardTitle>
-              <XCircle className="h-4 w-4 text-destructive" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">{rejectedQuotes}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-primary">Convertidos</CardTitle>
-              <ShoppingCart className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-primary">{convertedQuotes}</div>
+              <ChartContainer
+                config={{ faturamento: { label: 'Faturamento', color: 'hsl(var(--chart-3))' } }}
+                className="h-[220px] w-full"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyData}>
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(val) => `R${val / 1000}k`}
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar
+                      dataKey="faturamento"
+                      fill="var(--color-faturamento)"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
             </CardContent>
           </Card>
         </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Faturamento Semanal</CardTitle>
-            <CardDescription>Receita gerada nos últimos 7 dias.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer
-              config={{ faturamento: { label: 'Faturamento', color: 'hsl(var(--primary))' } }}
-              className="h-[250px] w-full"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dailyData}>
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                  <XAxis dataKey="label" axisLine={false} tickLine={false} />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(val) => `R${val / 1000}k`}
-                  />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar
-                    dataKey="faturamento"
-                    fill="var(--color-faturamento)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="border-destructive/30 shadow-sm flex flex-col">
-          <CardHeader className="pb-3 bg-destructive/5">
-            <CardTitle className="flex items-center gap-2 text-destructive">
-              <PackageOpen className="h-5 w-5" /> Alertas de Estoque
-            </CardTitle>
-            <CardDescription>Itens abaixo do mínimo.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex-1 p-0 overflow-hidden">
-            <ScrollArea className="h-[250px] p-4">
-              <div className="space-y-3">
-                {lowStockProducts.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Todos os estoques estão normais.</p>
-                ) : (
-                  lowStockProducts.map((p) => (
-                    <div
-                      key={p.id}
-                      className="flex justify-between items-center bg-muted/30 p-2 rounded-md border border-destructive/10"
-                    >
-                      <div>
-                        <p className="font-medium text-sm leading-tight">{p.name}</p>
-                        <p className="text-[10px] text-muted-foreground">SKU: {p.sku}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-destructive">
-                          {p.stock} {p.unit}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground">Mín: {p.minStock}</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Tendência Mensal (4 Semanas)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer
-              config={{ faturamento: { label: 'Faturamento', color: 'hsl(var(--chart-2))' } }}
-              className="h-[220px] w-full"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={weeklyData}>
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                  <XAxis dataKey="label" axisLine={false} tickLine={false} />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(val) => `R${val / 1000}k`}
-                  />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Line
-                    type="monotone"
-                    dataKey="faturamento"
-                    stroke="var(--color-faturamento)"
-                    strokeWidth={3}
-                    dot={{ r: 4 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Histórico Semestral (6 Meses)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ChartContainer
-              config={{ faturamento: { label: 'Faturamento', color: 'hsl(var(--chart-3))' } }}
-              className="h-[220px] w-full"
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={monthlyData}>
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                  <XAxis dataKey="label" axisLine={false} tickLine={false} />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(val) => `R${val / 1000}k`}
-                  />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar
-                    dataKey="faturamento"
-                    fill="var(--color-faturamento)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          </CardContent>
-        </Card>
-      </div>
+      )}
     </div>
   )
 }
