@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { HardHat } from 'lucide-react'
+import { HardHat, Chrome } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export default function Register() {
@@ -28,7 +28,7 @@ export default function Register() {
   const [password, setPassword] = useState('')
   const [role, setRole] = useState<Role>('Seller')
   const [error, setError] = useState('')
-  const { register } = useAppContext()
+  const { register, socialLogin } = useAppContext()
   const navigate = useNavigate()
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -119,9 +119,33 @@ export default function Register() {
               </p>
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col gap-4">
+          <CardFooter className="flex flex-col gap-3">
             <Button type="submit" className="w-full">
               Finalizar Cadastro
+            </Button>
+
+            <div className="relative w-full">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground rounded-full">
+                  Ou registre-se com
+                </span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                socialLogin('novo.usuario@gmail.com', 'Novo Usuário Google')
+                navigate('/')
+              }}
+            >
+              <Chrome className="mr-2 h-4 w-4" />
+              Google
             </Button>
             <div className="text-sm text-center text-muted-foreground">
               Já possui uma conta?{' '}

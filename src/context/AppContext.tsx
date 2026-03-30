@@ -9,6 +9,16 @@ export interface User {
   email: string
   role: Role
   password?: string
+  phone?: string
+  avatar?: string
+}
+
+export interface AccessLog {
+  id: string
+  userId: string
+  userName: string
+  userEmail: string
+  timestamp: string
 }
 
 export interface Seller {
@@ -326,6 +336,10 @@ interface AppContextType {
   login: (email: string, pass: string) => boolean
   register: (data: { name: string; email: string; password: string; role: Role }) => boolean
   logout: () => void
+  socialLogin: (email: string, name: string) => void
+  updateProfile: (data: Partial<User>) => void
+  resetPassword: (email: string, newPass: string) => boolean
+  accessLogs: AccessLog[]
 }
 
 const initialUsers: User[] = [
@@ -782,6 +796,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [cashTransactions, setCashTransactions] = useState<CashTransaction[]>([])
   const [cashClosings, setCashClosings] = useState<CashClosing[]>([])
+  const [accessLogs, setAccessLogs] = useState<AccessLog[]>(() => {
+    const saved = localStorage.getItem('app_access_logs')
+    return saved ? JSON.parse(saved) : []
+  })
+
+  useEffect(() => {
+    localStorage.setItem('app_access_logs', JSON.stringify(accessLogs))
+  }, [accessLogs])
 
   const [maxDiscountPercentage, setMaxDiscountPercentage] = useState<number>(10)
   const [monthlySalesGoal, setMonthlySalesGoal] = useState<number>(50000)
@@ -796,6 +818,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('app_sellers', JSON.stringify(sellers))
   }, [sellers])
 
+  const logAccess = (user: User) => {
+    const newLog: AccessLog = {
+      id: Date.now().toString(),
+      userId: user.id,
+      userName: user.name,
+      userEmail: user.email,
+      timestamp: new Date().toISOString(),
+    }
+    setAccessLogs((prev) => [newLog, ...prev])
+  }
+
   const login = (email: string, pass: string) => {
     const user = users.find((u) => u.email === email && u.password === pass)
     if (user) {
@@ -804,6 +837,58 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setRole(user.role)
       localStorage.setItem('auth_token', 'true')
       localStorage.setItem('auth_user', JSON.stringify(user))
+      logAccess(user)
+      return true
+    }
+    return false
+  }
+
+  const socialLogin = (email: string, name: string) => {
+    let user = users.find((u) => u.email === email)
+    if (!user) {
+      user = {
+        id: Date.now().toString(),
+        name,
+        email,
+        role: 'Seller',
+      }
+      const updatedUsers = [...users, user]
+      setUsers(updatedUsers)
+
+      const newSeller: Seller = {
+        id: user.id,
+        code: `V${Math.floor(Math.random() * 1000)
+          .toString()
+          .padStart(3, '0')}`,
+        name: user.name,
+        currentBalance: 0,
+        totalCredits: 0,
+        totalDebits: 0,
+        maxDiscountLimit: 1000,
+      }
+      setSellers((prev) => [...prev, newSeller])
+    }
+
+    setIsAuthenticated(true)
+    setCurrentUser(user)
+    setRole(user.role)
+    localStorage.setItem('auth_token', 'true')
+    localStorage.setItem('auth_user', JSON.stringify(user))
+    logAccess(user)
+  }
+
+  const updateProfile = (data: Partial<User>) => {
+    const updatedUser = { ...currentUser, ...data }
+    setCurrentUser(updatedUser)
+    setUsers(users.map((u) => (u.id === updatedUser.id ? updatedUser : u)))
+    localStorage.setItem('auth_user', JSON.stringify(updatedUser))
+    toast({ title: 'Perfil Atualizado', description: 'Suas informações foram salvas com sucesso.' })
+  }
+
+  const resetPassword = (email: string, newPass: string) => {
+    const userExists = users.some((u) => u.email === email)
+    if (userExists) {
+      setUsers(users.map((u) => (u.email === email ? { ...u, password: newPass } : u)))
       return true
     }
     return false
@@ -826,6 +911,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setRole(newUser.role)
     localStorage.setItem('auth_token', 'true')
     localStorage.setItem('auth_user', JSON.stringify(newUser))
+    logAccess(newUser)
 
     if (newUser.role === 'Seller') {
       const newSeller: Seller = {
@@ -1780,6 +1866,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         isAuthenticated,
         login,
         register: registerUser,
+        socialLogin,
+        updateProfile,
+        resetPassword,
+        accessLogs,
         logout,
       }}
     >

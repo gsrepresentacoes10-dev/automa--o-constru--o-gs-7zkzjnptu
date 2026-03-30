@@ -109,6 +109,7 @@ const menuSections = [
       { title: 'Vendedores', url: '/vendedores', icon: Tags, roles: ['Admin', 'Manager'] },
       { title: 'Clientes', url: '/clientes', icon: Users, roles: ['Admin', 'Manager'] },
       { title: 'Usuários do Sistema', url: '/colaboradores', icon: UserCog, roles: ['Admin'] },
+      { title: 'Logs de Acesso', url: '/logs-acesso', icon: History, roles: ['Admin'] },
     ],
   },
 ]

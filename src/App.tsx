@@ -27,6 +27,10 @@ import SalesSearch from './pages/SalesSearch'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import MyStatement from './pages/MyStatement'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
+import Profile from './pages/Profile'
+import AccessLogs from './pages/AccessLogs'
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
@@ -37,9 +41,13 @@ const App = () => (
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/checkout/:type/:id" element={<Checkout />} />
           <Route element={<Layout />}>
             <Route path="/" element={<Index />} />
+            <Route path="/perfil" element={<Profile />} />
+            <Route path="/logs-acesso" element={<AccessLogs />} />
             <Route path="/meu-extrato" element={<MyStatement />} />
             <Route path="/estoque" element={<Inventory />} />
             <Route path="/produtos" element={<Products />} />

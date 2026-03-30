@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Outlet, useLocation, Link, Navigate } from 'react-router-dom'
-import { Bell, Search, UserCircle, Menu, PackageOpen } from 'lucide-react'
+import { Bell, Search, UserCircle, Menu, PackageOpen, User as UserIcon } from 'lucide-react'
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from './AppSidebar'
 import { Button } from '@/components/ui/button'
@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAppContext, Role } from '@/context/AppContext'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -161,6 +161,13 @@ export default function Layout() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                   <Avatar className="h-8 w-8">
+                    {currentUser?.avatar && (
+                      <AvatarImage
+                        src={currentUser.avatar}
+                        alt={currentUser.name}
+                        className="object-cover"
+                      />
+                    )}
                     <AvatarFallback className="bg-primary/20 text-primary font-bold">
                       {role.charAt(0)}
                     </AvatarFallback>
@@ -183,6 +190,13 @@ export default function Layout() {
                     </p>
                   </div>
                 </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link to="/perfil" className="flex items-center w-full">
+                    <UserIcon className="mr-2 h-4 w-4" />
+                    <span>Meu Perfil</span>
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 {role === 'Admin' && (
                   <>
@@ -228,6 +242,7 @@ export default function Layout() {
               '/vendedores',
               '/clientes',
               '/colaboradores',
+              '/logs-acesso',
             ].some((p) => location.pathname.startsWith(p)) ? (
               <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto text-center space-y-4">
                 <div className="bg-destructive/10 p-4 rounded-full">
