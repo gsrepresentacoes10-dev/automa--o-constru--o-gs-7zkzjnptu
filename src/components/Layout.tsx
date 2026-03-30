@@ -40,11 +40,11 @@ export default function Layout() {
   } = useAppContext()
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [tempMaxDiscount, setTempMaxDiscount] = useState(maxDiscountPercentage)
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />
   }
-  const [tempMaxDiscount, setTempMaxDiscount] = useState(maxDiscountPercentage)
 
   const lowStockProducts = products.filter((p) => p.stock <= p.minStock)
   const lowStockCount = lowStockProducts.length
