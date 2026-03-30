@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet, useLocation, Link } from 'react-router-dom'
+import { Outlet, useLocation, Link, Navigate } from 'react-router-dom'
 import { Bell, Search, UserCircle, Menu, PackageOpen } from 'lucide-react'
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar'
 import { AppSidebar } from './AppSidebar'
@@ -29,10 +29,21 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 
 export default function Layout() {
   const location = useLocation()
-  const { role, setRole, products, maxDiscountPercentage, setMaxDiscountPercentage } =
-    useAppContext()
+  const {
+    isAuthenticated,
+    currentUser,
+    role,
+    logout,
+    products,
+    maxDiscountPercentage,
+    setMaxDiscountPercentage,
+  } = useAppContext()
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
   const [tempMaxDiscount, setTempMaxDiscount] = useState(maxDiscountPercentage)
 
   const lowStockProducts = products.filter((p) => p.stock <= p.minStock)
@@ -159,36 +170,38 @@ export default function Layout() {
               <DropdownMenuContent className="w-56" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
-                    <p className="text-sm font-medium leading-none">Usuário Demo</p>
+                    <p className="text-sm font-medium leading-none">{currentUser?.name}</p>
                     <p className="text-xs leading-none text-muted-foreground">
                       Perfil atual:{' '}
                       <Badge variant="outline" className="ml-1 text-xs">
-                        {role}
+                        {role === 'Admin'
+                          ? 'Administrador'
+                          : role === 'Manager'
+                            ? 'Gerente'
+                            : 'Usuário Comum'}
                       </Badge>
                     </p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  Mudar Visão (Simulação)
-                </DropdownMenuLabel>
-                {(['Admin', 'Manager', 'Seller'] as Role[]).map((r) => (
-                  <DropdownMenuItem key={r} onClick={() => setRole(r)} className="cursor-pointer">
-                    Visão {r}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
+                {role === 'Admin' && (
+                  <>
+                    <DropdownMenuItem
+                      className="cursor-pointer"
+                      onClick={() => {
+                        setTempMaxDiscount(maxDiscountPercentage)
+                        setIsSettingsOpen(true)
+                      }}
+                    >
+                      Configurações do Sistema
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem
-                  className="cursor-pointer"
-                  onClick={() => {
-                    setTempMaxDiscount(maxDiscountPercentage)
-                    setIsSettingsOpen(true)
-                  }}
+                  onClick={logout}
+                  className="text-destructive focus:text-destructive cursor-pointer"
                 >
-                  Configurações do Sistema
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-destructive focus:text-destructive cursor-pointer">
                   Sair do Sistema
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -201,7 +214,36 @@ export default function Layout() {
           key={location.pathname}
         >
           <div className="animate-slide-in-right h-full print:animate-none">
-            <Outlet />
+            {role === 'Seller' &&
+            [
+              '/estoque',
+              '/compras',
+              '/historico-compras',
+              '/desempenho',
+              '/relatorios',
+              '/fluxo-caixa',
+              '/contas-receber',
+              '/contas-a-pagar',
+              '/fornecedores',
+              '/vendedores',
+              '/clientes',
+              '/colaboradores',
+            ].some((p) => location.pathname.startsWith(p)) ? (
+              <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto text-center space-y-4">
+                <div className="bg-destructive/10 p-4 rounded-full">
+                  <UserCircle className="h-12 w-12 text-destructive" />
+                </div>
+                <h2 className="text-2xl font-bold tracking-tight">Acesso Restrito</h2>
+                <p className="text-muted-foreground">
+                  O seu perfil de Usuário Comum não tem permissão para acessar esta área.
+                </p>
+                <Button asChild className="mt-4">
+                  <Link to="/vendas">Ir para Vendas</Link>
+                </Button>
+              </div>
+            ) : (
+              <Outlet />
+            )}
           </div>
         </main>
       </SidebarInset>

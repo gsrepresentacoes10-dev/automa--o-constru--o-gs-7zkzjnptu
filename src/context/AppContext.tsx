@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { toast } from '@/hooks/use-toast'
 
 export type Role = 'Admin' | 'Manager' | 'Seller'
@@ -8,6 +8,7 @@ export interface User {
   name: string
   email: string
   role: Role
+  password?: string
 }
 
 export interface Seller {
@@ -321,12 +322,34 @@ interface AppContextType {
   setMaxDiscountPercentage: (val: number) => void
   monthlySalesGoal: number
   setMonthlySalesGoal: (goal: number) => void
+  isAuthenticated: boolean
+  login: (email: string, pass: string) => boolean
+  register: (data: { name: string; email: string; password: string; role: Role }) => boolean
+  logout: () => void
 }
 
 const initialUsers: User[] = [
-  { id: '1', name: 'Carlos Admin', email: 'carlos@construmaster.com', role: 'Admin' },
-  { id: '2', name: 'Ana Gerente', email: 'ana@construmaster.com', role: 'Manager' },
-  { id: '3', name: 'Pedro Vendedor', email: 'pedro@construmaster.com', role: 'Seller' },
+  {
+    id: '1',
+    name: 'Carlos Admin',
+    email: 'admin@construmaster.com',
+    role: 'Admin',
+    password: '123',
+  },
+  {
+    id: '2',
+    name: 'Ana Gerente',
+    email: 'gerente@construmaster.com',
+    role: 'Manager',
+    password: '123',
+  },
+  {
+    id: '3',
+    name: 'Pedro Vendedor',
+    email: 'vendedor@construmaster.com',
+    role: 'Seller',
+    password: '123',
+  },
 ]
 
 const initialSellers: Seller[] = [
@@ -723,10 +746,26 @@ const initialQuotes: Quote[] = [
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [users, setUsers] = useState<User[]>(initialUsers)
-  const [role, setRole] = useState<Role>('Admin')
-  const [currentUser, setCurrentUser] = useState<User>(initialUsers[0])
-  const [sellers, setSellers] = useState<Seller[]>(initialSellers)
+  const [users, setUsers] = useState<User[]>(() => {
+    const saved = localStorage.getItem('app_users')
+    return saved ? JSON.parse(saved) : initialUsers
+  })
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem('auth_token') === 'true'
+  })
+
+  const [currentUser, setCurrentUser] = useState<User>(() => {
+    const saved = localStorage.getItem('auth_user')
+    return saved ? JSON.parse(saved) : initialUsers[0]
+  })
+
+  const [role, setRole] = useState<Role>(currentUser.role)
+
+  const [sellers, setSellers] = useState<Seller[]>(() => {
+    const saved = localStorage.getItem('app_sellers')
+    return saved ? JSON.parse(saved) : initialSellers
+  })
   const [sellerCreditHistory, setSellerCreditHistory] = useState<SellerCreditHistory[]>(
     initialSellerCreditHistory,
   )
@@ -749,6 +788,68 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const cashbackPercentage = 2
 
+  useEffect(() => {
+    localStorage.setItem('app_users', JSON.stringify(users))
+  }, [users])
+
+  useEffect(() => {
+    localStorage.setItem('app_sellers', JSON.stringify(sellers))
+  }, [sellers])
+
+  const login = (email: string, pass: string) => {
+    const user = users.find((u) => u.email === email && u.password === pass)
+    if (user) {
+      setIsAuthenticated(true)
+      setCurrentUser(user)
+      setRole(user.role)
+      localStorage.setItem('auth_token', 'true')
+      localStorage.setItem('auth_user', JSON.stringify(user))
+      return true
+    }
+    return false
+  }
+
+  const registerUser = (data: { name: string; email: string; password: string; role: Role }) => {
+    if (users.find((u) => u.email === data.email)) return false
+    const newUser: User = {
+      id: Date.now().toString(),
+      name: data.name,
+      email: data.email,
+      password: data.password,
+      role: data.role,
+    }
+    const updatedUsers = [...users, newUser]
+    setUsers(updatedUsers)
+
+    setIsAuthenticated(true)
+    setCurrentUser(newUser)
+    setRole(newUser.role)
+    localStorage.setItem('auth_token', 'true')
+    localStorage.setItem('auth_user', JSON.stringify(newUser))
+
+    if (newUser.role === 'Seller') {
+      const newSeller: Seller = {
+        id: newUser.id,
+        code: `V${Math.floor(Math.random() * 1000)
+          .toString()
+          .padStart(3, '0')}`,
+        name: newUser.name,
+        currentBalance: 0,
+        totalCredits: 0,
+        totalDebits: 0,
+        maxDiscountLimit: 1000,
+      }
+      setSellers((prev) => [...prev, newSeller])
+    }
+    return true
+  }
+
+  const logout = () => {
+    setIsAuthenticated(false)
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('auth_user')
+  }
+
   const checkZeroStockAlert = (product: Product, oldStock: number, newStock: number) => {
     if (newStock === 0 && oldStock > 0 && product.isEssential) {
       setTimeout(() => {
@@ -766,6 +867,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const matchedUser = users.find((u) => u.role === newRole)
     if (matchedUser) {
       setCurrentUser(matchedUser)
+      localStorage.setItem('auth_user', JSON.stringify(matchedUser))
     }
   }
 
@@ -1675,6 +1777,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setMaxDiscountPercentage,
         monthlySalesGoal,
         setMonthlySalesGoal,
+        isAuthenticated,
+        login,
+        register: registerUser,
+        logout,
       }}
     >
       {children}

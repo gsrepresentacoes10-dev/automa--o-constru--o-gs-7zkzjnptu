@@ -93,12 +93,18 @@ const menuSections = [
         icon: Wallet,
         roles: ['Admin', 'Manager'],
       },
+      {
+        title: 'Meu Extrato',
+        url: '/meu-extrato',
+        icon: Wallet,
+        roles: ['Seller'],
+      },
     ],
   },
   {
     label: 'Cadastros',
     items: [
-      { title: 'Produtos', url: '/produtos', icon: Boxes, roles: ['Admin', 'Manager'] },
+      { title: 'Produtos', url: '/produtos', icon: Boxes, roles: ['Admin', 'Manager', 'Seller'] },
       { title: 'Fornecedores', url: '/fornecedores', icon: Truck, roles: ['Admin', 'Manager'] },
       { title: 'Vendedores', url: '/vendedores', icon: Tags, roles: ['Admin', 'Manager'] },
       { title: 'Clientes', url: '/clientes', icon: Users, roles: ['Admin', 'Manager'] },

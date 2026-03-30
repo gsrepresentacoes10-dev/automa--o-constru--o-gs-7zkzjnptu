@@ -24,6 +24,9 @@ import Checkout from './pages/Checkout'
 import NotFound from './pages/NotFound'
 import CashFlow from './pages/CashFlow'
 import SalesSearch from './pages/SalesSearch'
+import Login from './pages/Login'
+import Register from './pages/Register'
+import MyStatement from './pages/MyStatement'
 
 const App = () => (
   <BrowserRouter future={{ v7_startTransition: false, v7_relativeSplatPath: false }}>
@@ -32,9 +35,12 @@ const App = () => (
         <Toaster />
         <Sonner />
         <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           <Route path="/checkout/:type/:id" element={<Checkout />} />
           <Route element={<Layout />}>
             <Route path="/" element={<Index />} />
+            <Route path="/meu-extrato" element={<MyStatement />} />
             <Route path="/estoque" element={<Inventory />} />
             <Route path="/produtos" element={<Products />} />
             <Route path="/vendas" element={<Sales />} />
