@@ -57,17 +57,6 @@ const COLORS = [
 export default function Reports() {
   const { sales, sellerCreditHistory, role } = useAppContext()
 
-  if (role !== 'Admin' && role !== 'Manager') {
-    return (
-      <div className="flex h-[50vh] flex-col items-center justify-center gap-2">
-        <h2 className="text-2xl font-bold tracking-tight">Acesso Restrito</h2>
-        <p className="text-muted-foreground">
-          Você não tem permissão para visualizar relatórios gerenciais.
-        </p>
-      </div>
-    )
-  }
-
   const [perfPeriod, setPerfPeriod] = useState('month') // today, week, month, custom
   const [perfCustomStart, setPerfCustomStart] = useState('')
   const [perfCustomEnd, setPerfCustomEnd] = useState('')
@@ -245,6 +234,17 @@ export default function Reports() {
 
   const top5Profitable = marginCategoryData.slice(0, 5)
   const bottom5Profitable = [...marginCategoryData].sort((a, b) => a.margin - b.margin).slice(0, 5)
+
+  if (role !== 'Admin' && role !== 'Manager') {
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center gap-2">
+        <h2 className="text-2xl font-bold tracking-tight">Acesso Restrito</h2>
+        <p className="text-muted-foreground">
+          Você não tem permissão para visualizar relatórios gerenciais.
+        </p>
+      </div>
+    )
+  }
 
   const chartData = [
     { month: 'Jan', vendas: 45000, custos: 32000 },
