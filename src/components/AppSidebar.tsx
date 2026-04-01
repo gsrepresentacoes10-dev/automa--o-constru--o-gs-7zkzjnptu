@@ -106,6 +106,7 @@ const menuSections = [
     items: [
       { title: 'Produtos', url: '/produtos', icon: Boxes, roles: ['Admin', 'Manager', 'Seller'] },
       { title: 'Fornecedores', url: '/fornecedores', icon: Truck, roles: ['Admin', 'Manager'] },
+      { title: 'Entrada de NF', url: '/entrada-nf', icon: FileText, roles: ['Admin', 'Manager'] },
       { title: 'Colaboradores', url: '/colaboradores', icon: Tags, roles: ['Admin', 'Manager'] },
       { title: 'Clientes', url: '/clientes', icon: Users, roles: ['Admin', 'Manager'] },
       {
