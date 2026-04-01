@@ -68,11 +68,19 @@ import { BarChart, Bar, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from 
 import { BarcodeScannerModal } from '@/components/BarcodeScannerModal'
 import { PrintInventoryModal } from '@/components/PrintInventoryModal'
 import { NewPurchaseModal } from '@/components/NewPurchaseModal'
+import { ArrowUpRight, TrendingDown } from 'lucide-react'
 
 export default function Inventory() {
   const navigate = useNavigate()
-  const { products, stockMovements, addManualStockAdjustment, purchaseOrders, purchases } =
-    useAppContext()
+  const {
+    products,
+    stockMovements,
+    addManualStockAdjustment,
+    purchaseOrders,
+    purchases,
+    sales,
+    role,
+  } = useAppContext()
 
   const [searchTerm, setSearchTerm] = useState('')
   const [isScannerOpen, setIsScannerOpen] = useState(false)
@@ -227,6 +235,45 @@ export default function Inventory() {
     window.print()
   }
 
+  const purchaseSuggestions = useMemo(() => {
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+    const recentSales = sales.filter(
+      (s) => new Date(s.date) >= thirtyDaysAgo && s.status !== 'Cancelado',
+    )
+
+    const productSales = new Map<string, number>()
+    recentSales.forEach((s) => {
+      s.items.forEach((item) => {
+        productSales.set(item.product.id, (productSales.get(item.product.id) || 0) + item.quantity)
+      })
+    })
+
+    return products
+      .map((p) => {
+        const soldLast30 = productSales.get(p.id) || 0
+        const velocityPerDay = soldLast30 / 30
+
+        const daysUntilDepletion = velocityPerDay > 0 ? p.stock / velocityPerDay : Infinity
+
+        let suggestOrder = 0
+        if (p.stock <= p.minStock || daysUntilDepletion < 15) {
+          suggestOrder = Math.ceil(velocityPerDay * 30 + p.minStock - p.stock)
+          if (suggestOrder < 0) suggestOrder = 0
+        }
+
+        return {
+          product: p,
+          velocity: velocityPerDay,
+          soldLast30,
+          suggestOrder,
+        }
+      })
+      .filter((item) => item.suggestOrder > 0 && item.soldLast30 > 0)
+      .sort((a, b) => b.suggestOrder - a.suggestOrder)
+  }, [products, sales])
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
@@ -256,6 +303,14 @@ export default function Inventory() {
           <TabsTrigger value="movimentacoes">Histórico de Movimentações</TabsTrigger>
           <TabsTrigger value="auditoria">Auditoria de Inventário</TabsTrigger>
           <TabsTrigger value="relatorio">Compras vs Entradas</TabsTrigger>
+          {(role === 'Admin' || role === 'Manager') && (
+            <TabsTrigger
+              value="sugestoes"
+              className="text-blue-600 data-[state=active]:text-blue-700"
+            >
+              Sugestões de Compra
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="estoque" className="space-y-6 mt-0 print:hidden">
@@ -843,6 +898,75 @@ export default function Inventory() {
             </CardContent>
           </Card>
         </TabsContent>
+        {(role === 'Admin' || role === 'Manager') && (
+          <TabsContent value="sugestoes" className="space-y-6 mt-0 print:hidden">
+            <Card className="border-blue-200 shadow-sm">
+              <CardHeader className="bg-blue-50/50 pb-4 border-b border-blue-100">
+                <CardTitle className="text-blue-800 flex items-center gap-2">
+                  <TrendingDown className="h-5 w-5" /> Sugestões de Reposição Automática
+                </CardTitle>
+                <CardDescription className="text-blue-600/80">
+                  Baseado na velocidade de vendas dos últimos 30 dias e estoque atual. Somente
+                  produtos com giro são analisados.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0 p-0 overflow-auto">
+                <Table>
+                  <TableHeader className="bg-blue-50/30">
+                    <TableRow>
+                      <TableHead className="pl-6">Produto / SKU</TableHead>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead className="text-center">Estoque Atual</TableHead>
+                      <TableHead className="text-center">Giro (Un/Dia)</TableHead>
+                      <TableHead className="text-right pr-6">Sugestão de Compra</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {purchaseSuggestions.map(({ product, velocity, suggestOrder }) => (
+                      <TableRow key={product.id} className="hover:bg-blue-50/20">
+                        <TableCell className="pl-6">
+                          <div className="font-medium">{product.name}</div>
+                          <div className="text-xs text-muted-foreground">{product.sku}</div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{product.category}</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span
+                            className={cn(
+                              'font-bold',
+                              product.stock <= product.minStock ? 'text-destructive' : '',
+                            )}
+                          >
+                            {product.stock}
+                          </span>
+                          <span className="text-xs text-muted-foreground ml-1">{product.unit}</span>
+                        </TableCell>
+                        <TableCell className="text-center font-medium">
+                          {velocity.toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-right pr-6">
+                          <div className="flex items-center justify-end gap-2 text-blue-700 font-bold">
+                            {suggestOrder}{' '}
+                            <span className="text-xs font-normal opacity-80">{product.unit}</span>
+                            <ArrowUpRight className="h-4 w-4" />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {purchaseSuggestions.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                          Seu estoque está saudável! Nenhuma reposição crítica sugerida no momento.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
 
       <Sheet

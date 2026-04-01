@@ -25,6 +25,7 @@ import NotFound from './pages/NotFound'
 import CashFlow from './pages/CashFlow'
 import SalesSearch from './pages/SalesSearch'
 import InvoiceEntry from './pages/InvoiceEntry'
+import InvoiceEntryHistory from './pages/InvoiceEntryHistory'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import MyStatement from './pages/MyStatement'
@@ -60,6 +61,7 @@ const App = () => (
             <Route path="/fornecedores" element={<Suppliers />} />
             <Route path="/notas-fiscais" element={<Invoices />} />
             <Route path="/entrada-nf" element={<InvoiceEntry />} />
+            <Route path="/historico-entradas-nf" element={<InvoiceEntryHistory />} />
             <Route path="/clientes" element={<Customers />} />
             <Route path="/colaboradores" element={<Sellers />} />
             <Route path="/usuarios" element={<Staff />} />

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Upload, Calculator, PackagePlus, Check, FileText } from 'lucide-react'
+import { Upload, Calculator, PackagePlus, Check, FileText, AlertTriangle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -128,25 +128,32 @@ export default function InvoiceEntry() {
       profitMargin: item.pricing?.profitMargin || 30,
       promoPrice: item.pricing?.promoPrice || 0,
     })
+    setAcknowledgeLoss(false)
     setIsPricingModalOpen(true)
   }
 
-  const calculatePrice = () => {
-    if (!selectedItem) return 0
+  const [acknowledgeLoss, setAcknowledgeLoss] = useState(false)
+
+  const calculateCosts = () => {
+    if (!selectedItem) return { totalCost: 0, finalPrice: 0 }
     const cost = selectedItem.unitCost
     const taxesVal =
       pricingForm.taxesType === '%' ? cost * (pricingForm.taxes / 100) : pricingForm.taxes
     const subtotal1 = cost + taxesVal
     const adminVal =
       pricingForm.adminType === '%' ? subtotal1 * (pricingForm.admin / 100) : pricingForm.admin
-    const subtotal2 = subtotal1 + adminVal
-    const finalPrice = subtotal2 * (1 + pricingForm.profitMargin / 100)
-    return finalPrice
+    const totalCost = subtotal1 + adminVal
+    const finalPrice = totalCost * (1 + pricingForm.profitMargin / 100)
+    return { totalCost, finalPrice }
   }
+
+  const { totalCost, finalPrice } = calculateCosts()
+  const effectivePrice = pricingForm.promoPrice > 0 ? pricingForm.promoPrice : finalPrice
+  const isBelowCost = effectivePrice < totalCost
 
   const savePricing = () => {
     if (!selectedItem) return
-    const finalPrice = calculatePrice()
+    if (isBelowCost && !acknowledgeLoss) return
 
     setItems(
       items.map((i) =>
@@ -511,13 +518,13 @@ export default function InvoiceEntry() {
                 </div>
               </div>
 
-              <div className="bg-primary/5 p-5 rounded-xl border border-primary/20 mt-4 flex flex-col items-center">
+              <div className="bg-primary/5 p-5 rounded-xl border border-primary/20 mt-4 flex flex-col items-center relative overflow-hidden">
                 <span className="text-sm text-primary/80 font-medium mb-1 uppercase tracking-wider">
                   Preço de Venda Sugerido
                 </span>
                 <span className="text-4xl font-bold text-primary tracking-tight">
                   {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-                    calculatePrice(),
+                    finalPrice,
                   )}
                 </span>
                 {pricingForm.promoPrice > 0 && (
@@ -530,11 +537,50 @@ export default function InvoiceEntry() {
                 )}
               </div>
 
+              {isBelowCost && (
+                <div className="bg-destructive/10 text-destructive p-4 rounded-md flex flex-col gap-3 border border-destructive/30 mt-4 animate-fade-in">
+                  <div className="flex items-center gap-2 font-bold">
+                    <AlertTriangle className="h-5 w-5" />
+                    Aviso de Prejuízo Operacional
+                  </div>
+                  <p className="text-sm">
+                    O preço de venda efetivo (
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                      effectivePrice,
+                    )}
+                    ) está abaixo do custo total de entrada do produto (
+                    {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                      totalCost,
+                    )}
+                    ).
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      type="checkbox"
+                      id="ack-loss"
+                      className="w-4 h-4 accent-destructive cursor-pointer"
+                      checked={acknowledgeLoss}
+                      onChange={(e) => setAcknowledgeLoss(e.target.checked)}
+                    />
+                    <Label
+                      htmlFor="ack-loss"
+                      className="text-sm cursor-pointer font-medium text-destructive"
+                    >
+                      Estou ciente do prejuízo e desejo aplicar o preço
+                    </Label>
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-end gap-3 pt-4">
                 <Button variant="outline" onClick={() => setIsPricingModalOpen(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={savePricing} className="gap-2">
+                <Button
+                  onClick={savePricing}
+                  className="gap-2"
+                  disabled={isBelowCost && !acknowledgeLoss}
+                >
                   <Check className="h-4 w-4" />
                   Aplicar Preço
                 </Button>

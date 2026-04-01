@@ -55,7 +55,18 @@ const COLORS = [
 ]
 
 export default function Reports() {
-  const { sales, sellerCreditHistory } = useAppContext()
+  const { sales, sellerCreditHistory, role } = useAppContext()
+
+  if (role !== 'Admin' && role !== 'Manager') {
+    return (
+      <div className="flex h-[50vh] flex-col items-center justify-center gap-2">
+        <h2 className="text-2xl font-bold tracking-tight">Acesso Restrito</h2>
+        <p className="text-muted-foreground">
+          Você não tem permissão para visualizar relatórios gerenciais.
+        </p>
+      </div>
+    )
+  }
 
   const [perfPeriod, setPerfPeriod] = useState('month') // today, week, month, custom
   const [perfCustomStart, setPerfCustomStart] = useState('')
@@ -203,6 +214,38 @@ export default function Reports() {
     },
   ]
 
+  const marginCategoryData = useMemo(() => {
+    const catMap = new Map<string, { revenue: number; cost: number; profit: number }>()
+
+    filteredPerfSales.forEach((s) => {
+      s.items.forEach((item) => {
+        const cat = item.product.category || 'Geral'
+        const rev = item.total
+        const cst = item.quantity * (item.product.costPrice || 0)
+        const prof = rev - cst
+
+        const ex = catMap.get(cat)
+        if (ex) {
+          ex.revenue += rev
+          ex.cost += cst
+          ex.profit += prof
+        } else {
+          catMap.set(cat, { revenue: rev, cost: cst, profit: prof })
+        }
+      })
+    })
+
+    return Array.from(catMap.entries())
+      .map(([category, data]) => {
+        const margin = data.revenue > 0 ? (data.profit / data.revenue) * 100 : 0
+        return { category, ...data, margin }
+      })
+      .sort((a, b) => b.margin - a.margin)
+  }, [filteredPerfSales])
+
+  const top5Profitable = marginCategoryData.slice(0, 5)
+  const bottom5Profitable = [...marginCategoryData].sort((a, b) => a.margin - b.margin).slice(0, 5)
+
   const chartData = [
     { month: 'Jan', vendas: 45000, custos: 32000 },
     { month: 'Fev', vendas: 52000, custos: 34000 },
@@ -245,6 +288,7 @@ export default function Reports() {
             <TabsTrigger value="performance">Desempenho (Lucro)</TabsTrigger>
             <TabsTrigger value="abc">Curva ABC</TabsTrigger>
             <TabsTrigger value="margens">Margens e Créditos</TabsTrigger>
+            <TabsTrigger value="margens-categoria">Dashboard de Margens</TabsTrigger>
           </TabsList>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => exportSalesToExcel(sales)}>
@@ -659,6 +703,132 @@ export default function Reports() {
             </ChartContainer>
           </CardContent>
         </Card>
+      </TabsContent>
+
+      <TabsContent value="margens-categoria" className="mt-0 print:hidden flex-1 space-y-6">
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card className="flex flex-col">
+            <CardHeader>
+              <CardTitle>Margem de Lucro por Categoria (%)</CardTitle>
+              <CardDescription>
+                Comparativo do Custo Real x Preço de Venda nas categorias vendidas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1">
+              {marginCategoryData.length > 0 ? (
+                <ChartContainer
+                  config={{
+                    margin: { label: 'Margem %', color: 'hsl(var(--primary))' },
+                  }}
+                  className="h-[400px] w-full"
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={marginCategoryData}
+                      layout="vertical"
+                      margin={{ top: 0, right: 30, left: 40, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                      <XAxis type="number" tickFormatter={(val) => `${val}%`} />
+                      <YAxis dataKey="category" type="category" width={100} />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="margin" fill="var(--color-margin)" radius={[0, 4, 4, 0]}>
+                        {marginCategoryData.map((entry, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={
+                              entry.margin >= 20
+                                ? '#10b981'
+                                : entry.margin >= 10
+                                  ? '#f59e0b'
+                                  : '#ef4444'
+                            }
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+              ) : (
+                <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                  Nenhum dado disponível.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="space-y-6">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-emerald-700">Top 5 Mais Lucrativos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead className="text-right">Margem</TableHead>
+                      <TableHead className="text-right">Lucro</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {top5Profitable.map((c) => (
+                      <TableRow key={`top-${c.category}`}>
+                        <TableCell className="font-medium">{c.category}</TableCell>
+                        <TableCell className="text-right text-emerald-600 font-bold">
+                          {c.margin.toFixed(1)}%
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(c.profit)}</TableCell>
+                      </TableRow>
+                    ))}
+                    {top5Profitable.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center text-muted-foreground py-6">
+                          Nenhuma categoria vendida.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-red-700">Top 5 Menos Lucrativos</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead className="text-right">Margem</TableHead>
+                      <TableHead className="text-right">Lucro</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {bottom5Profitable.map((c) => (
+                      <TableRow key={`bot-${c.category}`}>
+                        <TableCell className="font-medium">{c.category}</TableCell>
+                        <TableCell className="text-right text-red-600 font-bold">
+                          {c.margin.toFixed(1)}%
+                        </TableCell>
+                        <TableCell className="text-right">{formatCurrency(c.profit)}</TableCell>
+                      </TableRow>
+                    ))}
+                    {bottom5Profitable.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center text-muted-foreground py-6">
+                          Nenhuma categoria vendida.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </TabsContent>
 
       <PrintableSales sales={sales} />
